@@ -1,0 +1,149 @@
+{
+    "agents": [
+        {
+            "type": "assistant",
+            "description": "A specialized assistant for financial tasks such as budgeting, financial analysis, and progress reporting.",
+            "skills": [
+                {
+                    "title": "create_budget_csv",
+                    "description": "This skill creates a CSV file based on user's budgeting preferences.",
+                    "content": "",
+                    "file_name": "custom_apps/financial_bot/skills/get_skills/create_budget_csv.py"
+                },
+                {
+                    "title": "analyze_bank_statement",
+                    "description": "This skill analyzes bank statements from a CSV file.",
+                    "content": "",
+                    "file_name": "custom_apps/financial_bot/skills/get_skills/analyze_bank_statement.py"
+                },
+                {
+                    "title": "generate_update_progress_report",
+                    "description": "This skill generates and updates a progress report based on budget and spending.",
+                    "content": "",
+                    "file_name": "custom_apps/financial_bot/skills/get_skills/generate_update_progress_report.py"
+                },
+                {
+                    "title": "calculate_progress",
+                    "description": "This skill calculates financial progress based on budget and actual spending.",
+                    "content": "",
+                    "file_name": "custom_apps/financial_bot/skills/get_skills/calculate_progress.py"
+                }
+            ],
+            "config": {
+                "name": "financial_assistant",
+                "llm_config": {
+                    "config_list": [
+                        {
+                            "model": "gpt-4-1106-preview"
+                        },
+                        {
+                            "model": "gpt-3.5-turbo-16k"
+                        }
+                    ],
+                    "temperature": 0.1,
+                    "timeout": 600,
+                    "cache_seed": null
+                },
+                "human_input_mode": "NEVER",
+                "max_consecutive_auto_reply": 5,
+                "system_message": "Your task is to assist with financial management, including budgeting, analyzing bank statements, and generating progress reports."
+            }
+        }
+    ],
+    "skills": [
+        {
+            "title": "create_budget_csv",
+            "description": "This skill creates a CSV file based on user's budgeting preferences.",
+            "file_name": "custom_apps/financial_bot/skills/get_skills/create_budget_csv.py"
+        },
+        {
+            "title": "analyze_bank_statement",
+            "description": "This skill analyzes bank statements from a CSV file.",
+            "file_name": "custom_apps/financial_bot/skills/get_skills/analyze_bank_statement.py"
+        },
+        {
+            "title": "generate_update_progress_report",
+            "description": "This skill generates and updates a progress report based on budget and spending.",
+            "file_name": "custom_apps/financial_bot/skills/get_skills/generate_update_progress_report.py"
+        },
+        {
+            "title": "calculate_progress",
+            "description": "This skill calculates financial progress based on budget and actual spending.",
+            "file_name": "custom_apps/financial_bot/skills/get_skills/calculate_progress.py"
+        }
+    ],
+    "workflows": [
+        {
+            "name": "Financial Management Workflow",
+            "description": "Workflow for managing financial tasks including budgeting, statement analysis, and progress tracking.",
+            "sender": {
+                "type": "userproxy",
+                "config": {
+                    "name": "userproxy",
+                    "human_input_mode": "NEVER",
+                    "max_consecutive_auto_reply": 5,
+                    "system_message": "",
+                    "llm_config": false,
+                    "code_execution_config": {
+                        "work_dir": null,
+                        "use_docker": false
+                    }
+                }
+            },
+            "receiver": {
+                "type": "assistant",
+                "description": "Financial Assistant specialized in financial management tasks",
+                "skills": [
+                    {
+                        "title": "create_budget_csv",
+                        "description": "This skill creates a CSV file based on user's budgeting preferences.",
+                        "content": "",
+                        "file_name": "custom_apps/financial_bot/skills/get_skills/create_budget_csv.py"
+                    },
+                    {
+                        "title": "analyze_bank_statement",
+                        "description": "This skill analyzes bank statements from a CSV file.",
+                        "content": "",
+                        "file_name": "custom_apps/financial_bot/skills/get_skills/analyze_bank_statement.py"
+                    },
+                    {
+                        "title": "generate_update_progress_report",
+                        "description": "This skill generates and updates a progress report based on budget and spending.",
+                        "content": "",
+                        "file_name": "custom_apps/financial_bot/skills/get_skills/generate_update_progress_report.py"
+                    },
+                    {
+                        "title": "calculate_progress",
+                        "description": "This skill calculates financial progress based on budget and actual spending.",
+                        "content": "",
+                        "file_name": "custom_apps/financial_bot/skills/get_skills/calculate_progress.py"
+                    }
+                ],
+                "config": {
+                    "name": "financial_assistant",
+                    "llm_config": {
+                        "config_list": [
+                            {
+                                "model": "gpt-4-1106-preview"
+                            },
+                            {
+                                "model": "gpt-3.5-turbo-16k"
+                            },
+                            {
+                                "model": "TheBloke/zephyr-7B-alpha-AWQ",
+                                "base_url": "http://localhost:8000/v1"
+                            }
+                        ],
+                        "temperature": 0.1,
+                        "timeout": 600,
+                        "cache_seed": null
+                    },
+                    "human_input_mode": "NEVER",
+                    "max_consecutive_auto_reply": 15,
+                    "system_message": "You are a helpful assistant that can use available functions when needed to solve problems. At each point, do your best to determine if the user's request has been addressed. IF THE REQUEST HAS NOT BEEN ADDRESSED, RESPOND WITH CODE TO ADDRESS IT. IF A FAILURE OCCURRED (e.g., due to a missing library) AND SOME ADDITIONAL CODE WAS WRITTEN (e.g. code to install the library), ENSURE THAT THE ORIGINAL CODE TO ADDRESS THE TASK STILL GETS EXECUTED. If the request HAS been addressed, respond with a summary of the result. The summary must be written as a coherent helpful response to the user request e.g. 'Sure, here is result to your request ' or 'The tallest mountain in Africa is ..' etc.  The summary MUST end with the word TERMINATE. If the user request is  pleasantry or greeting, you should respond with a pleasantry or greeting and TERMINATE."
+                }
+            },
+            "type": "default"
+        }  
+    ]
+}
