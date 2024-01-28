@@ -90,9 +90,9 @@ jobs:
       env:
         DOCKER_BUILDKIT: 1
       run: |  
-        docker build -t alw:staging .
-        docker tag alw:staging ${{ secrets.DOCKER_HUB_USERNAME }}/alw:latest
-        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/alw:latest
+        docker build -t kodaagents:staging .
+        docker tag kodaagents:staging ${{ secrets.DOCKER_HUB_USERNAME }}/kodaagents:latest
+        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/kodaagents:latest
 
     - name: Setup SSH Key and Add to Known Hosts
       run: |
