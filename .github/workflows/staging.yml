@@ -113,26 +113,37 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+          
           cd /home/ubuntu/agency/
+          
+          # Pull the latest image
+          docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/kodaagents:latest
+
+          # Ensure scripts are executable (in case they are not already)
+          chmod +x install_miniconda.sh
+          chmod +x install_docker.sh
+
           # Check if Miniconda is installed
           if [ ! -d "$HOME/miniconda" ]; then
             echo "Installing Miniconda..."
-            chmod +x install_miniconda.sh
             ./install_miniconda.sh
+            source "$HOME/miniconda/bin/activate"
           else
             echo "Miniconda already installed."
           fi
 
           # Check if Docker Compose is installed
-          if ! command -v docker-compose &> /dev/null; then
+          if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
             echo "Installing Docker Compose..."
-            chmod +x install_docker.sh
             ./install_docker.sh
+            # No need to modify PATH or logout/login; Docker should be immediately usable
           else
             echo "Docker Compose already installed."
           fi
-          docker-compose down
-          docker-compose up -d
+          
+          # Run docker commands using Docker Compose plugin syntax
+          docker compose down || echo "Docker Compose down failed or not necessary"
+          docker compose up -d || echo "Docker Compose up failed"
 
 # username = iamkoda
 # repo name = kodaagents
