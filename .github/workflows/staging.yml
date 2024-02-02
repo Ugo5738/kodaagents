@@ -122,6 +122,7 @@ jobs:
           # Ensure scripts are executable (in case they are not already)
           chmod +x install_miniconda.sh
           chmod +x install_docker.sh
+          chmod +x entrypoint.sh
 
           # Check if Miniconda is installed
           if [ ! -d "$HOME/miniconda" ]; then
@@ -144,6 +145,29 @@ jobs:
           # Run docker commands using Docker Compose plugin syntax
           docker compose down || echo "Docker Compose down failed or not necessary"
           docker compose up -d || echo "Docker Compose up failed"
+    
+    - name: Setup crontab for Docker cleanup on the server with logging
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          # Define the cron job command with logging
+          CRON_JOB="0 0 * * * /usr/bin/docker system prune -af > /var/log/docker_cleanup.log 2>&1"
+
+          # Create a log file and set permissions (if not already exist)
+          TOUCH_LOG_CMD="touch /var/log/docker_cleanup.log && chmod 644 /var/log/docker_cleanup.log"
+          (crontab -l | grep -q "/var/log/docker_cleanup.log") || ($TOUCH_LOG_CMD)
+
+          # Check if the cleanup cron job already exists
+          (crontab -l | grep -q "docker system prune") || (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+
+          # Ensure the cron service is running
+          sudo service cron restart
+
+          # This cron job is scheduled to run at midnight every day, performing a Docker system prune
+          # to remove unused Docker objects and logs the output to /var/log/docker_cleanup.log.
 
 # username = iamkoda
 # repo name = kodaagents

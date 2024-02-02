@@ -34,8 +34,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Playwright and browsers
 RUN npm i -D playwright && npx playwright install
 
-# Collect static files
-# RUN python manage.py collectstatic --noinput
+# Give execute permissions to the entrypoint script
+RUN chmod +x /code/entrypoint.sh
+
+# Set the entrypoint script to be executed
+ENTRYPOINT ["/code/entrypoint.sh"]
 
 # Run the application
 # CMD daphne koda.asgi:application --port $PORT --bind 0.0.0.0

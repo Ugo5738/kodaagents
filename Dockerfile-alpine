@@ -1,0 +1,31 @@
+# Pull the base image
+FROM python:3.11-alpine
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+ENV PLAYWRIGHT_BROWSERS_PATH /ms-playwright
+
+# Install necessary system dependencies including FFmpeg
+RUN apk update && \
+    apk add --no-cache openjdk17 poppler-utils tesseract-ocr \
+    chromium chromium-chromedriver ffmpeg nodejs npm && \
+    apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev openssl-dev python3-dev && \
+    pip install --no-cache-dir -r requirements.txt && \
+    npm i -D playwright && npx playwright install && \
+    apk del .build-deps
+
+# Set work directory
+WORKDIR /code
+
+# Copy project
+COPY . /code/
+
+# Give execute permissions to the entrypoint script
+RUN chmod +x /code/entrypoint.sh
+
+# Set the entrypoint script to be executed
+ENTRYPOINT ["/code/entrypoint.sh"]
+
+# Run the application
+CMD ["daphne", "koda.asgi:application", "--port", "$PORT", "--bind", "0.0.0.0"]
