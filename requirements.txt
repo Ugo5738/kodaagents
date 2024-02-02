@@ -38,10 +38,10 @@ open-interpreter==0.2.0
 pandas==2.2.0
 Pillow==10.2.0
 pinecone-client==3.0.2
-playwright==1.41.1
+# playwright==1.41.1
 pyautogen==0.2.8
-pymongo==4.6.1
-pyspellchecker==0.8.1
+# pymongo==4.6.1
+# pyspellchecker==0.8.1
 python-decouple==3.8
 python-dotenv==1.0.1
 python-Levenshtein==0.23.0
@@ -50,4 +50,4 @@ tabula-py==2.9.0
 textblob==0.17.1
 textstat==0.7.3
 tiktoken<0.5.0  # specifically required for open-interpreter at the moment
-unstructured[pdf]
+unstructured  # [pdf] remove for space atm
