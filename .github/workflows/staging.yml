@@ -149,8 +149,8 @@ jobs:
           fi
           
           # Run docker commands using Docker Compose plugin syntax
-          docker compose down || echo "Docker Compose down failed or not necessary"
-          docker compose up -d || echo "Docker Compose up failed"
+          sudo docker compose down || echo "Docker Compose down failed or not necessary"
+          sudo docker compose up -d || echo "Docker Compose up failed"
     
     - name: Setup crontab for Docker cleanup on the server with logging
       uses: appleboy/ssh-action@master
