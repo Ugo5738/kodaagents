@@ -24,6 +24,7 @@ jobs:
     
     - name: Check Database Connection
       env:
+        DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
       run: |
         python manage.py check --database default
