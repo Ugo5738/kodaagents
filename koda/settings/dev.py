@@ -12,8 +12,15 @@ PASSWORD = config("PASSWORD")
 
 # ================================ DATABASES =======================================
 DATABASES = {
-    "default": dj_database_url.config(default="sqlite:///db.sqlite3", conn_max_age=600)
+    "default": dj_database_url.config(
+        default="postgres://aiagency_dan:ai_@1st@postgres:5432/aiagency_db",
+        conn_max_age=600,
+    ),
 }
+
+# DATABASES = {
+#     "default": dj_database_url.config(default="sqlite:///db.sqlite3", conn_max_age=600)
+# }
 
 # DATABASES = {
 #     'default': {

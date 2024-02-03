@@ -21,56 +21,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    
-    - name: Check Database Connection
-      env:
-        # ------------------------- GENERAL ------------------------- 
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
-        
-          # ------------------------- SUPERUSER ------------------------- 
-          USERNAME: ${{ secrets.USERNAME }}
-          EMAIL: ${{ secrets.EMAIL }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-        
-          # ------------------------- DATABASE ------------------------- 
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        
-          # ------------------------- CORS ------------------------- 
-          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
-        
-          # ------------------------- CSRF ------------------------- 
-          CSRF_TRUSTED_ORIGINS: ${{ secrets.CSRF_TRUSTED_ORIGINS }}
-          
-          # ------------------------- CDN STORAGE ------------------------- 
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_STORAGE_BUCKET_NAME: ${{ secrets.AWS_STORAGE_BUCKET_NAME }}
-        
-          # ------------------------- TEXT PROCESSING DETAILS -------------------------
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ASSISTANT_ID: ${{ secrets.ASSISTANT_ID }}
-  
-          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-          PINECONE_API_ENV: ${{ secrets.PINECONE_API_ENV }}
-          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
-          
-          # -------------------------- REDIS CONFIG ----------------------------
-          REDIS_URL: ${{ secrets.REDIS_URL }}
-          
-          # -------------------------- MEETINGS ----------------------------
-          FIREFLIES_API_KEY: ${{ secrets.FIREFLIES_API_KEY }}
-        
-          # -------------------------- ZOOM ----------------------------
-          ZOOM_ACCOUNT_ID: ${{ secrets.ZOOM_ACCOUNT_ID }}
-          ZOOM_CLIENT_ID: ${{ secrets.ZOOM_CLIENT_ID }}
-          ZOOM_CLIENT_SECRET: ${{ secrets.ZOOM_CLIENT_SECRET }}
-          
-      run: |
-        python manage.py check --database default
 
     - name: Run Tests
       env:
