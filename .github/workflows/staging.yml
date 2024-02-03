@@ -101,8 +101,14 @@ jobs:
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+    
+    - name: Decrypt .env.gpg File
+      env:
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: |
+        echo $GPG_PASSPHRASE | gpg --quiet --batch --yes --decrypt --passphrase-fd 0 --output ./.env ./.env.gpg
 
-    - name: Transfer Repository to Remote Server
+    - name: Transfer Repository to Remote Server (Including Decrypted .env)
       run: rsync -avz -e "ssh -i ~/.ssh/id_rsa" ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/agency/
       
     - name: Execute Docker commands on remote server
@@ -171,3 +177,4 @@ jobs:
 
 # username = iamkoda
 # repo name = kodaagents
+# .env encrypt with kodaenv
