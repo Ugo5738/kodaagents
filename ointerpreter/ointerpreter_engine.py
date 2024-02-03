@@ -5,8 +5,6 @@ from interpreter import interpreter
 
 # from interpreter.core.core import OpenInterpreter
 
-interpreter = OpenInterpreter()
-
 executor = ThreadPoolExecutor()
 
 
