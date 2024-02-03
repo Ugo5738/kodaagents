@@ -1,11 +1,11 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-# from interpreter import interpreter
-from interpreter import OpenInterpreter
+from interpreter import interpreter
 
-# Instantiate OpenInterpreter with auto_run=True
-interpreter = OpenInterpreter(auto_run=True)
+# from interpreter.core.core import OpenInterpreter
+
+interpreter = OpenInterpreter()
 
 executor = ThreadPoolExecutor()
 
@@ -15,6 +15,7 @@ async def get_interpreter_result(query):
 
     # Function to be called within the ThreadPoolExecutor
     def run_chat():
+        interpreter.auto_run = True
         return interpreter.chat(query)
 
     try:
