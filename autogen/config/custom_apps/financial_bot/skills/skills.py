@@ -1,9 +1,10 @@
 import csv
-import pandas as pd
 import json
-from shared.utils.log_config import configure_logger
-from shared.utils.base_config import openai_client
+
 import openai
+import pandas as pd
+from shared.utils.base_config import openai_client
+from shared.utils.log_config import configure_logger
 
 logger = configure_logger(__name__)
 
@@ -16,16 +17,18 @@ def interpret_user_preferences(input_text: str):
     Returns:
         dict: Structured budget preferences.
     """
-    response = openai.ChatCompletion.create(
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant. Convert the user's natural language conversation text into structured budget preferences in JSON format.",
+        },
+        {"role": "user", "content": input_text},
+    ]
+
+    response = client.chat.completions.create(
         model="gpt-4-1106-preview",
-        response_format={type: "json_object"},
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful assistant. Convert the user's natural language conversation text into structured budget preferences in JSON format.",
-            },
-            {"role": "user", "content": input_text},
-        ],
+        messages=messages,
+        response_format={"type": "json_object"},
     )
     try:
         # Assuming the response is a Python dictionary in string format

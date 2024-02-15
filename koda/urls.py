@@ -36,7 +36,8 @@ default_urlpatterns = [
 custom_urlpatterns = [
     path("api/", include("assistant.urls")),
     path("api/auth/", include("accounts.urls")),
-    path("api/interpreter/", include("ointerpreter.urls")),
+    path("api/agent/", include("autogen.urls")),
+    # path("api/interpreter/", include("ointerpreter.urls")),
     # path("api/payment/", include("payment.urls")),
 ]
 

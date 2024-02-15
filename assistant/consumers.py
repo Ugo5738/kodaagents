@@ -6,7 +6,6 @@ from datetime import datetime
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.conf import settings
-from interpreter import interpreter
 
 from assistant.knowledge_vec import query_vec_database
 from assistant.memory import BaseMemory
@@ -78,7 +77,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     role="user", content=user_message, message_id=message_id
                 )
 
-                bot_response = await self.get_interpreter_result(user_message)
+                bot_response = "bot_message"  # replace this when ready
                 logger.info(bot_response)
 
                 stop = time.time()

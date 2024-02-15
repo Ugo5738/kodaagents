@@ -43,7 +43,8 @@ LOCAL_APPS = [
     "accounts",
     # chat apps
     "assistant",
-    "ointerpreter",
+    "autogen",
+    # "ointerpsreter",
     # payment apps
     # "payment",
 ]
