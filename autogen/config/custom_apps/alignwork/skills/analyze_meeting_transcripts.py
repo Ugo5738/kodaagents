@@ -6,7 +6,7 @@ from koda.config.logging_config import configure_logger
 logger = configure_logger(__name__)
 
 
-def get_tasks_from_transcript(input_text: str):
+def analyze_meeting_transcripts(input_text: str):
     """
     Creates to-do tasks from of conversation or meeting transcripts.
     Args:

@@ -1,5 +1,5 @@
 import json
-
+from autogen.config.shared.utils.instructions import SYSTEM_INSTRUCTION
 
 def deep_merge(dict1, dict2):
     """
@@ -49,9 +49,9 @@ def merge_json_configs(file1, file2, output_file):
     print(f"Merged configuration saved to {output_file}")
 
 
-# Example usage
-merge_json_configs(
-    "shared/agents.json",
-    "custom_apps/financial_bot/config.json",
-    "merged_config.json",
-)
+# # Example usage
+# merge_json_configs(
+#     "shared/agents.json",
+#     "custom_apps/financial_bot/config.json",
+#     "merged_config.json",
+# )
