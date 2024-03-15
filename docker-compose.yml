@@ -39,12 +39,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=aiagency_db
+      - POSTGRES_USER=aiagency_dan 
+      - POSTGRES_PASSWORD=ai_@1st
     ports:
       - "5432:5432"
-    container_name: alw_app_postgres
+    container_name: ai_app_postgres
 
   nginx:
     image: nginx:latest
@@ -59,7 +59,7 @@ services:
       # - media_volume:/media
     depends_on:
       - web
-    container_name: alw_app_nginx
+    container_name: ai_app_nginx
 
 volumes:
   redis_volume:

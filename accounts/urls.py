@@ -19,9 +19,6 @@ router.register(r"users", views.UserViewSet, basename="user")
 admin_urls = [
     # path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
     path("admin/users/", views.UserListView.as_view(), name="user_list"),
-    path(
-        "customer/", views.OrganizationCustomerListView.as_view(), name="customer_list"
-    ),
 ]
 
 jwt_urls = [

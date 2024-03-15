@@ -9,7 +9,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH /ms-playwright
 # Install necessary system dependencies including FFmpeg
 RUN apt-get update -y && \
     apt-get install -y openjdk-17-jdk poppler-utils tesseract-ocr \
-    wget gnupg2 -y && \
+    wget gnupg2 -y netcat && \ 
     wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
     sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list' && \
     apt-get update && apt-get install -y google-chrome-stable ffmpeg

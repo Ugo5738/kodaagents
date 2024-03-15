@@ -47,7 +47,7 @@ LOCAL_APPS = [
     # AUTOGEN AGENTS
     "autogen",
     # =====================
-    # OINTERPRETER AGENTS    
+    # OINTERPRETER AGENTS
     # "ointerpsreter",
     # =====================
     # CREWAI AGENTS
@@ -214,6 +214,11 @@ SPECTACULAR_SETTINGS = {
 # ================================ CUSTOM CONFIGS =======================================
 
 # ================================ CUSTOM VARIABLES =======================================
+# ==> SUPERUSER
+ADMIN_USERNAME = config("ADMIN_USERNAME")
+ADMIN_EMAIL = config("ADMIN_EMAIL")
+ADMIN_PASSWORD = config("ADMIN_PASSWORD")
+
 # ==> OPENAI
 OPENAI_API_KEY = config("OPENAI_API_KEY")
 ASSISTANT_ID = config("ASSISTANT_ID")

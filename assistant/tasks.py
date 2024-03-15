@@ -3,7 +3,7 @@ import uuid
 
 from celery import shared_task
 
-from accounts.models import OrganizationCustomer, OrganizationProfile, User
+from accounts.models import OrganizationProfile, User
 from assistant.memory import BaseMemory
 from assistant.models import (
     Channel,
@@ -50,7 +50,7 @@ def save_conversation(
     logger.info(f"ORGANIZATION: {org}")
 
     # Fetch the customer
-    customer, customer_created = OrganizationCustomer.objects.get_or_create(
+    customer, customer_created = User.objects.get_or_create(
         organization=org, name=name, role=role
     )
     logger.info(f"CUSTOMER: {customer}")

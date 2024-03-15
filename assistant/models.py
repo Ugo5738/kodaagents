@@ -3,7 +3,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 
-from accounts.models import OrganizationCustomer
+from accounts.models import User
 
 
 class Channel(models.Model):
@@ -29,9 +29,7 @@ class Conversation(models.Model):
     thread = models.CharField(
         max_length=50, unique=True, editable=False, null=True, blank=True
     )
-    customer = models.ForeignKey(
-        OrganizationCustomer, on_delete=models.CASCADE, null=True, blank=True
-    )
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     channel = models.ForeignKey(
         Channel, on_delete=models.CASCADE, null=True, blank=True
     )
@@ -70,9 +68,7 @@ class GeneralChatAnalytics(models.Model):
     failed_recommendations = models.IntegerField(default=0)
     thumbs_up = models.IntegerField(default=0)
     thumbs_down = models.IntegerField(default=0)
-    unique_users = models.ManyToManyField(
-        OrganizationCustomer, related_name="chat_analytics"
-    )
+    unique_users = models.ManyToManyField(User, related_name="chat_analytics")
 
     def __str__(self):
         return f"Analytics for {self.conversation.id}"

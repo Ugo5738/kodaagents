@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 from accounts.models import User
 
@@ -13,6 +14,7 @@ class Resume(models.Model):
     linkedIn = models.URLField(blank=True, null=True)
     summary = models.TextField()
     version = models.IntegerField(default=1)
+    created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"Resume for {self.name}"

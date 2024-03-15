@@ -1,12 +1,11 @@
 # from datacenter import models as datacenter_models
-from koda.config.logging_config import configure_logger
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Avg, Sum
 from django.shortcuts import render
 from django.views import View
 from django.views.generic import View
 
-from accounts.models import OrganizationCustomer
+from accounts.models import User
 from assistant.models import (
     Conversation,
     GeneralChatAnalytics,
@@ -14,6 +13,7 @@ from assistant.models import (
     MessageVote,
     Session,
 )
+from koda.config.logging_config import configure_logger
 
 logger = configure_logger(__name__)
 
@@ -28,7 +28,7 @@ class DashboardView(View, LoginRequiredMixin):
     template_name = "judy/dashboard.html"
 
     def get(self, request):
-        total_customer = OrganizationCustomer.objects.all().count()
+        total_customer = User.objects.all().count()
 
         total_convo_num = Conversation.objects.all().count()
         conversation_total_upvotes = GeneralChatAnalytics.objects.aggregate(
@@ -126,15 +126,19 @@ class AnalyticsView(View):
 
         for analytic in analytics:
             analytic_base = {
-                "customer_name": analytic.conversation.customer.name
-                if analytic.conversation.customer
-                else "N/A",
-                "conversation_uuid": analytic.conversation.id
-                if analytic.conversation
-                else "N/A",
-                "channel_name": analytic.conversation.channel.name
-                if analytic.conversation.channel
-                else "N/A",
+                "customer_name": (
+                    analytic.conversation.customer.name
+                    if analytic.conversation.customer
+                    else "N/A"
+                ),
+                "conversation_uuid": (
+                    analytic.conversation.id if analytic.conversation else "N/A"
+                ),
+                "channel_name": (
+                    analytic.conversation.channel.name
+                    if analytic.conversation.channel
+                    else "N/A"
+                ),
                 "avg_response_time": analytic.avg_response_time,
                 "unanswered_questions": analytic.unanswered_questions,
                 "failed_recommendations": analytic.failed_recommendations,

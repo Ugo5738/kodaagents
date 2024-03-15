@@ -14,6 +14,7 @@ class UserFactory(factory.django.DjangoModelFactory):
         lambda a: f"{a.first_name.lower()}{a.last_name.lower()}"
     )
     phone = factory.Faker("phone_number")
+    gender = factory.Iterator(['M', 'F'])
 
     # email = factory.Sequence(lambda n: f"user{n}@example.com")
     # Using LazyAttribute to generate email based on first_name and last_name
@@ -23,6 +24,8 @@ class UserFactory(factory.django.DjangoModelFactory):
 
     date_of_birth = factory.Faker("date_of_birth")
     email_verified = True
+
+    profile_picture = None
 
 
 class OrganizationProfileFactory(factory.django.DjangoModelFactory):
