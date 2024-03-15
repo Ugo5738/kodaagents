@@ -6,7 +6,7 @@ from koda.config.logging_config import configure_logger
 logger = configure_logger(__name__)
 
 
-def get_tasks_from_transcript(input_text: str):
+async def get_tasks_from_transcript(input_text: str):
     """
     Creates to-do tasks from of conversation or meeting transcripts.
     Args:
@@ -22,7 +22,7 @@ def get_tasks_from_transcript(input_text: str):
         {"role": "user", "content": input_text},
     ]
 
-    structured_response = client.chat.completions.create(
+    structured_response = await client.chat.completions.create(
         model="gpt-4-1106-preview",
         messages=messages,
         response_format={"type": "json_object"},

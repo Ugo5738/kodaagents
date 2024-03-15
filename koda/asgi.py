@@ -1,19 +1,22 @@
 import os
 
-import django
-from decouple import config
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", config("DJANGO_SETTINGS_MODULE"))
-django.setup()
-
+# import django
+from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
+from decouple import config
 from django.core.asgi import get_asgi_application
 
-from assistant.routing import websocket_urlpatterns
+import assistant.routing
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", config("DJANGO_SETTINGS_MODULE"))
+# django.setup()
+
 
 application = ProtocolTypeRouter(
     {
         "http": get_asgi_application(),
-        "websocket": URLRouter(websocket_urlpatterns),
+        "websocket": AuthMiddlewareStack(
+            URLRouter(assistant.routing.websocket_urlpatterns)
+        ),
     }
 )

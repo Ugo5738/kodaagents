@@ -5,7 +5,7 @@ from django_countries.fields import CountryField
 
 from helpers.models import TrackingModel
 
-GENDER = (("M", "Male"), ("F", "Female"))
+GENDER_CHOICES = (("M", "Male"), ("F", "Female"))
 
 
 class UserManager(BaseUserManager):
@@ -46,7 +46,9 @@ class User(AbstractUser, TrackingModel):
         _("username"), max_length=30, blank=True, null=True, unique=False
     )
     phone = models.CharField(max_length=60, blank=True, null=True)
-
+    gender = models.CharField(
+        max_length=1, choices=GENDER_CHOICES, blank=True, null=True
+    )
     date_of_birth = models.DateField(null=True, blank=True)
     profile_picture = models.ImageField(
         upload_to="profile_pics/", null=True, blank=True
@@ -67,8 +69,8 @@ class User(AbstractUser, TrackingModel):
         return "{}".format(self.email)
 
     class Meta:
-        verbose_name = "User"
-        verbose_name_plural = "Users"
+        verbose_name = _("User")
+        verbose_name_plural = _("Users")
 
 
 class OrganizationProfile(TrackingModel):
@@ -89,34 +91,5 @@ class OrganizationProfile(TrackingModel):
         return "{}".format(self.name)
 
     class Meta:
-        verbose_name = "Organization"
-        verbose_name_plural = "Organizations"
-
-
-# DELETE THIS AS IT IS NOT NEEDED
-class OrganizationCustomer(TrackingModel):
-    organization = models.ForeignKey(OrganizationProfile, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)
-    email = models.EmailField()
-
-    # income details
-    income = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    age = models.PositiveIntegerField(blank=True, null=True)
-    employment_status = models.CharField(max_length=50)
-    employer_name = models.CharField(max_length=100)
-    job_title = models.CharField(max_length=100)
-    years_of_employment = models.PositiveIntegerField(blank=True, null=True)
-    credit_score = models.PositiveIntegerField(default=0)
-    total_assets = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True
-    )
-    total_liabilities = models.DecimalField(
-        max_digits=10, decimal_places=2, blank=True, null=True
-    )
-
-    def __str__(self):
-        return f"{self.organization.name}: {self.name}"
-
-    class Meta:
-        verbose_name = "Organization User"
-        verbose_name_plural = "Organization Users"
+        verbose_name = _("Organization")
+        verbose_name_plural = _("Organizations")
