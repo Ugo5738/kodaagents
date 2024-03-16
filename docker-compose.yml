@@ -1,39 +1,6 @@
-version: "3"
+version: "3.9"  # Using version 3.9 for better feature support
+
 services:
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      # dockerfile: Dockerfile-alpine  # test this out in next deployment
-    command: daphne koda.asgi:application -b 0.0.0.0 -p 8000
-    volumes:
-      - .:/code
-      - log_volume:/code/logs
-    ports:
-      - "8000:8000"
-    depends_on:
-      - redis
-    container_name: ai_app
-
-  celery:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      # dockerfile: Dockerfile-alpine  # test this out in next deployment
-    command: celery -A koda worker --loglevel=info
-    volumes:
-      - .:/code
-      - log_volume:/code/logs
-    depends_on:
-      - redis
-    container_name: ai_app_celery
-
-  redis:
-    image: redis:latest
-    volumes:
-      - redis_volume:/data
-    container_name: ai_app_redis
-
   postgres:
     image: postgres:latest
     volumes:
@@ -45,6 +12,59 @@ services:
     ports:
       - "5432:5432"
     container_name: ai_app_postgres
+
+  redis:
+    image: redis:latest
+    volumes:
+      - redis_volume:/data
+    container_name: ai_app_redis
+  
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/code/entrypoint.sh", "migrate"]
+    volumes:
+      - .:/code
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_DB=aiagency_db
+      - POSTGRES_USER=aiagency_dan 
+      - POSTGRES_PASSWORD=ai_@1st
+    container_name: ai_app_migration
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/code/entrypoint.sh", "web"]
+    volumes:
+      - .:/code
+      - log_volume:/code/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      - migration
+      - redis
+    environment:
+      - DATABASE_URL=postgres://aiagency_dan:ai_@1st@postgres:5432/aiagency_db
+    container_name: ai_app
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/code/entrypoint.sh", "celery"]
+    volumes:
+      - .:/code
+      - log_volume:/code/logs
+    depends_on:
+      - migration
+      - redis
+    environment:
+      - DATABASE_URL=postgres://aiagency_dan:ai_@1st@postgres:5432/aiagency_db
+    container_name: ai_app_celery
 
   nginx:
     image: nginx:latest
@@ -62,9 +82,9 @@ services:
     container_name: ai_app_nginx
 
 volumes:
+  postgres_data:
   redis_volume:
   log_volume:
-  postgres_data:
   # Uncomment these if you are serving static/media files from the container
   # static_volume:
   # media_volume:
