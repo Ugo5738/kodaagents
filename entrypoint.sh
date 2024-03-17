@@ -10,7 +10,6 @@ wait_for_postgres() {
     echo "PostgreSQL started"
 }
 
-# Operations based on the command-line argument
 case "$1" in
     migrate)
         # Call the wait function before attempting to access the database
@@ -28,19 +27,19 @@ case "$1" in
         echo "Collecting static files..."
         python manage.py collectstatic --noinput
         ;;
-    
+
     web)
         # Wait for migration service to complete. This is handled by docker-compose dependency
-        echo "Starting Daphne server..."
-        daphne koda.asgi:application --port $PORT --bind 0.0.0.0
+        echo "Starting Daphne server on port ${PORT}..."
+        daphne koda.asgi:application --port ${PORT} --bind 0.0.0.0
         ;;
-    
+
     celery)
         # Wait for migration service to complete. This is handled by docker-compose dependency
         echo "Starting Celery worker..."
         celery -A koda worker --loglevel=info
         ;;
-    
+
     *)
         echo "Unknown command: $1"
         exit 1
