@@ -178,19 +178,19 @@ async def create_docs(
 
     Please ensure the {doc_type_1} is professional and tailored to the job description provided, if applicable.
     """
-
+    
     created_content = await get_chat_response(
         instruction, content, doc_type=doc_type_1.upper()
     )
 
-    logger.info(
-        f"----------------------- CREATED {doc_type_1.upper()} -----------------------"
-    )
-    logger.info(f"{created_content}")
+    # logger.info(
+    #     f"----------------------- CREATED {doc_type_1.upper()} -----------------------"
+    # )
+    # logger.info(f"{created_content}")
 
-    total = time.time() - start_time
-    logger.info(f"Doc Creation Response Time: {total}")
-    return created_content
+    # total = time.time() - start_time
+    # logger.info(f"Doc Creation Response Time: {total}")
+    return "created_content"
 
 
 async def improve_doc(doc_type, doc_content, doc_feedback):

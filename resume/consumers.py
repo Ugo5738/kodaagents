@@ -37,9 +37,12 @@ class ResumeConsumer(AsyncWebsocketConsumer):
 
             if message_type == "customization":
                 custom_instruction = text_data_json.get("custom_instruction")
-                # Handle customization message
-                pass
+            
             elif message_type == "creation":
+                resume_content = text_data_json.get("resume_content")
+                cover_letter_content = text_data_json.get("cover_letter_content")
+                job_post_content = text_data_json.get("job_post_content")
+                
                 res = await create_docs(resume_content=resume_content, cover_letter_content=cover_letter_content, job_post_content=job_post_content)
 
             elif message_type == "pdf_upload":

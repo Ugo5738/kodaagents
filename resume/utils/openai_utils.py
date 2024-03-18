@@ -1,11 +1,12 @@
+import json
 import time
 
+from django.conf import settings
 from koda.config.base_config import openai_client as client
 from koda.config.logging_config import configure_logger
-from resume.utils.samples import (
-    resume_example_structure,
-    resume_fb_example_structure,
-)
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage, SystemMessage
+from resume.utils.samples import resume_example_structure, resume_fb_example_structure
 
 logger = configure_logger(__name__)
 
