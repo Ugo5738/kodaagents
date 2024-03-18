@@ -11,16 +11,19 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", config("DJANGO_SETTINGS_MODULE")
 # Setup Django before loading the application.
 django.setup()
 
-# Import the routing after Django has been set up.
-import assistant.routing
+
+# Import the WebSocket routing definitions from each app after Django has been set up.
+from assistant.routing import websocket_urlpatterns as assistant_websocket_urlpatterns
+from resume.routing import websocket_urlpatterns as resume_websocket_urlpatterns
+
+# Combine all the WebSocket URL patterns.
+websocket_urlpatterns = assistant_websocket_urlpatterns + resume_websocket_urlpatterns
 
 application = ProtocolTypeRouter(
     {
         "http": get_asgi_application(),  # Define the ASGI application to use for HTTP protocols.
         "websocket": AuthMiddlewareStack(  # Define the ASGI application to use for WebSocket protocols.
-            URLRouter(
-                assistant.routing.websocket_urlpatterns  # Use the WebSocket URL routing defined in assistant.routing.
-            )
+            URLRouter(websocket_urlpatterns)
         ),
     }
 )
