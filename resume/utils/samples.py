@@ -1,3 +1,5 @@
+import json
+
 default_resume = """
 SARAH JOHNSON
 Email: sjohnsonnurse@example.com | Phone: +1-555-123-4567 | Location: Seattle, Washington
@@ -49,3 +51,118 @@ Available upon request.
 
 LinkedIn Profile: https://www.linkedin.com/in/sarah-johnson-rn
 """
+
+
+resume_fb_example_structure = json.dumps(
+    {
+        "contact": "Feedback on contact section",
+        "summary": "Feedback on summary section",
+        "experiences": {
+            "experience_1": "Feedback on first experience section",
+            "experience_2": "Feedback on second experience section",
+            "experience_3": "Feedback on third experience section",
+            # Additional education entries can be added here
+        },
+        "education": [
+            "Feedback on first education section",
+            # Additional education entries can be added here
+        ],
+        "skills": "Feedback on skills section",
+        "certifications": [
+            "Feedback on certifications section",
+            # Additional certifications can be listed here
+        ],
+        # "projects": [
+        #     "Feedback on projects section",
+        #     # Additional projects can be listed here
+        # ],
+        "references": [
+            "Feedback on references section",
+            # Additional references can be added here
+        ],
+    },
+    indent=2,
+)
+
+
+resume_example_structure = json.dumps(
+    {
+        "contact": {
+            "name": "Sender Name",
+            "address": "Sender Address",
+            "phone": "Sender Phone",
+            "email": "Sender Email",
+            "linkedIn": "LinkedIn Profile url (if available)",
+        },
+        "summary": "Resume Executive Summary",
+        "experiences": {
+            "experience_1": {
+                "company_name": "Name of company worked for",
+                "job_role": "Job Position",
+                "start_date": "Start date of job",
+                "end_date": "End date of job if available",
+                "location": "Location of the company",
+                "job_description": [
+                    "First Description of Job Responsibilities and Achievements",
+                    "Second Description of Job Responsibilities and Achievements",
+                    "Third Description of Job Responsibilities and Achievements",
+                    # Additional descriptions can be added here
+                ],
+            },
+            "experience_2": {
+                "job_title": "Job Position",
+                "start_date": "Start date of job",
+                "end_date": "End date of job if available",
+                "job_description": "Description of Job Responsibilities and Achievements",
+            },
+            "experience_3": {
+                "job_title": "Job Position",
+                "start_date": "Start date of job",
+                "end_date": "End date of job if available",
+                "job_description": "Description of Job Responsibilities and Achievements",
+            },
+        },
+        "education": [
+            {
+                "institution": "Educational Institution",
+                "degree": "Degree Obtained",
+                "end_date": "End Date",
+                "location": "Location of institution",
+                "details": "Details about the Course or Achievements if available",
+            },
+            # Additional education entries can be added here
+        ],
+        "skills": [
+            "Skill 1",
+            "Skill 2",
+            # Additional skills can be listed here
+        ],
+        "certifications": [
+            {
+                "title": "Certification Title",
+                "issuing_organization": "Issuing Organization",
+                "date_obtained": "Date Obtained (if applicable)",
+                "validity_period": "Validity Period (if applicable)",
+            },
+            # Additional certifications can be listed here
+        ],
+        # "projects": [
+        #     {
+        #         "project_title": "Project Title",
+        #         "duration": "Project Duration",
+        #         "description": "Project Description",
+        #         "technologies_used": ["Technology 1", "Technology 2"],
+        #     },
+        #     # Additional projects can be listed here
+        # ],
+        "references": [
+            {
+                "referee_name": "Referee Name",
+                "relationship": "Relationship to the Referee",
+                "contact_information": "Referee Contact Information",
+            },
+            # Additional references can be added here
+        ],
+    },
+    indent=2,
+)
