@@ -166,3 +166,22 @@ resume_example_structure = json.dumps(
     },
     indent=2,
 )
+
+cover_letter_example_structure = json.dumps(
+    {
+        # "sender_info": {
+        #     "name": "Sender Name",
+        #     "address": "Sender Address",
+        #     "phone": "Sender Phone",
+        #     "email": "Sender Email",
+        #     "date": "Letter Date",
+        # },
+        # "recipient_info": {
+        #     "name": "Recipient Name",
+        #     "address": "Recipient Address",
+        # },
+        "body": "Letter Body excluding concluding greetings like 'Warm regards,\nFull Name'",
+        "concluding_greetings": "\n\nWarm regards,\nFull Name'",
+    },
+    indent=2,
+)

@@ -2,10 +2,12 @@ import json
 import time
 
 import textstat as textstat_analysis
-from koda.config.logging_config import configure_logger
-from resume.utils.openai_utils import get_chat_response
+from channels.layers import get_channel_layer
 from spellchecker import SpellChecker
 from textblob import TextBlob
+
+from koda.config.logging_config import configure_logger
+from resume.utils.openai_utils import get_chat_response
 
 logger = configure_logger(__name__)
 
@@ -136,9 +138,61 @@ async def resume_sections_feedback(doc_text):
 
 
 # =========================== DOCUMENT CREATION ===========================
-async def create_docs(
-    resume_content=None, cover_letter_content=None, job_post_content=None
+async def send_content_to_group(self, group_name, content):
+    channel_layer = get_channel_layer()
+    await channel_layer.group_send(
+        group_name,
+        {
+            "type": "document.creation",
+            "message": content,
+        },
+    )
+
+
+async def create_cover_letter(
+    group_name=None, resume_content=None, job_post_content=None
 ):
+    start_time = time.time()
+    logger.info(
+        "----------------------- COVER LETTER CREATION STARTED -----------------------"
+    )
+
+    if job_post_content:
+        if resume_content:
+            doc_type_1 = "cover_letter"
+            doc_type_2 = "job post and resume"
+            doc_content = f"{job_post_content}\n\n{resume_content}"
+
+    instruction = f"""
+    Create a {('tailored ' if job_post_content else '')}{doc_type_1} using the {doc_type_2} provided.
+    """
+
+    content = f"""
+    {doc_type_2.upper()} PROVIDED:
+    {doc_content}
+
+    Please ensure the {doc_type_1} is professional and tailored to the job description provided, if applicable.
+    """
+
+    created_content = await get_chat_response(
+        instruction, content, doc_type=doc_type_1.upper()
+    )
+
+    logger.info(
+        f"----------------------- CREATED {doc_type_1.upper()} -----------------------"
+    )
+    logger.info(f"{created_content}")
+
+    await send_content_to_group(
+        group_name, {"type": "document.creation", "data": created_content}
+    )
+
+    total = time.time() - start_time
+    logger.info(f"Cover Letter Creation Response Time: {total}")
+    # return created_content
+
+
+async def create_docs(group_name=None, resume_content=None, job_post_content=None):
     start_time = time.time()
     logger.info("----------------------- DOC CREATION STARTED -----------------------")
 
@@ -147,10 +201,11 @@ async def create_docs(
             doc_type_1 = "resume"
             doc_type_2 = "job post and resume"
             doc_content = f"{job_post_content}\n\n{resume_content}"
-        elif cover_letter_content:
-            doc_type_1 = "cover letter"
-            doc_type_2 = "job post and cover letter"
-            doc_content = f"{job_post_content}\n\n{cover_letter_content}"
+            await create_cover_letter(
+                group_name=group_name,
+                resume_content=resume_content,
+                job_post_content=job_post_content,
+            )
         else:
             # Fallback if only job_post_content is provided without specific direction
             doc_type_1 = "document"
@@ -160,10 +215,6 @@ async def create_docs(
         doc_type_1 = "resume"
         doc_type_2 = "resume content"
         doc_content = resume_content
-    elif cover_letter_content:
-        doc_type_1 = "cover letter"
-        doc_type_2 = "cover letter content"
-        doc_content = cover_letter_content
     else:
         logger.error("No valid content provided for document creation.")
         return "Error: No content provided."
@@ -178,19 +229,19 @@ async def create_docs(
 
     Please ensure the {doc_type_1} is professional and tailored to the job description provided, if applicable.
     """
-    
+
     created_content = await get_chat_response(
         instruction, content, doc_type=doc_type_1.upper()
     )
 
-    # logger.info(
-    #     f"----------------------- CREATED {doc_type_1.upper()} -----------------------"
-    # )
-    # logger.info(f"{created_content}")
+    logger.info(
+        f"----------------------- CREATED {doc_type_1.upper()} -----------------------"
+    )
+    logger.info(f"{created_content}")
 
-    # total = time.time() - start_time
-    # logger.info(f"Doc Creation Response Time: {total}")
-    return "created_content"
+    total = time.time() - start_time
+    logger.info(f"Doc Creation Response Time: {total}")
+    return created_content
 
 
 async def improve_doc(doc_type, doc_content, doc_feedback):

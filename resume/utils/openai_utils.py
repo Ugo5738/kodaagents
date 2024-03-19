@@ -2,11 +2,16 @@ import json
 import time
 
 from django.conf import settings
-from koda.config.base_config import openai_client as client
-from koda.config.logging_config import configure_logger
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
-from resume.utils.samples import resume_example_structure, resume_fb_example_structure
+
+from koda.config.base_config import openai_client as client
+from koda.config.logging_config import configure_logger
+from resume.utils.samples import (
+    cover_letter_example_structure,
+    resume_example_structure,
+    resume_fb_example_structure,
+)
 
 logger = configure_logger(__name__)
 
@@ -27,6 +32,8 @@ async def get_chat_response(instruction, message, doc_type=None):
             structured_instruction = f"{instruction}\n\nHere is how I would like the information to be structured in JSON format:\n{resume_example_structure}\n\nIf there isn't any provided value for the required key in the json format, return None as corresponding value.\nInclude line breaks where appropriate in all the sections of the letter. Now, based on the content provided above, please structure the document content accordingly."
         elif doc_type == "R-sections-fb":
             structured_instruction = f"{instruction}\n\nHere is how I would like the information to be structured in JSON format:\n{resume_fb_example_structure}\n\nDo not miss any key value pair when creating the JSON data."
+        if doc_type == "COVER_LETTER":
+            structured_instruction = f"{instruction}\n\nHere is how I would like the information to be structured in JSON format:\n{cover_letter_example_structure}\n\nInclude line breaks where appropriate in all the sections of the letter. Now, based on the content provided above, please structure the document content accordingly."
 
         messages = [
             {"role": "system", "content": structured_instruction},
