@@ -2,11 +2,12 @@ import json
 import logging
 import time
 
+from django.conf import settings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
-client = OpenAI(api_key="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")
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def get_refined_instruction(instruction, example_structure, message_type=None):
@@ -24,8 +25,8 @@ def get_chat_response(
 
     chat = ChatOpenAI(
         temperature=0.7,
-        model_name="gpt-4-1106-preview",
-        openai_api_key="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",
+        model_name=settings.MODEL_NAME,
+        openai_api_key=settings.OPENAI_API_KEY,
     )
 
     messages = [SystemMessage(content=instruction), HumanMessage(content=message)]
@@ -41,7 +42,7 @@ def get_chat_response(
         ]
 
         structured_response = client.chat.completions.create(
-            model="gpt-4-1106-preview",
+            model=settings.MODEL_NAME,
             messages=messages,
             response_format={"type": "json_object"},
         )

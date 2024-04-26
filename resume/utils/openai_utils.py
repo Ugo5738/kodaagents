@@ -21,7 +21,7 @@ async def get_chat_response(instruction, message, doc_type=None):
 
     chat = ChatOpenAI(
         temperature=0.7,
-        model_name="gpt-4-1106-preview",
+        model_name=settings.MODEL_NAME,
         openai_api_key=settings.OPENAI_API_KEY,
     )
 
@@ -41,7 +41,7 @@ async def get_chat_response(instruction, message, doc_type=None):
         ]
 
         structured_response = await client.chat.completions.create(
-            model="gpt-4-1106-preview",
+            model=settings.MODEL_NAME,
             messages=messages,
             response_format={"type": "json_object"},
         )

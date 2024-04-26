@@ -1,5 +1,7 @@
 import json
 
+from django.conf import settings
+
 from koda.config.base_config import openai_client as client
 from koda.config.logging_config import configure_logger
 
@@ -23,7 +25,7 @@ async def get_tasks_from_transcript(input_text: str):
     ]
 
     structured_response = await client.chat.completions.create(
-        model="gpt-4-1106-preview",
+        model=settings.MODEL_NAME,
         messages=messages,
         response_format={"type": "json_object"},
     )

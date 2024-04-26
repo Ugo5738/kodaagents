@@ -3,7 +3,8 @@ import json
 
 import openai
 import pandas as pd
-from shared.utils.base_config import openai_client
+from django.conf import settings
+from shared.utils.base_config import openai_client as client
 from shared.utils.log_config import configure_logger
 
 logger = configure_logger(__name__)
@@ -26,7 +27,7 @@ def interpret_user_preferences(input_text: str):
     ]
 
     response = client.chat.completions.create(
-        model="gpt-4-1106-preview",
+        model=settings.MODEL_NAME,
         messages=messages,
         response_format={"type": "json_object"},
     )

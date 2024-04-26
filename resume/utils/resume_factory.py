@@ -1,7 +1,13 @@
-from resume.utils.util_funcs import get_feedback_and_improve
+import time
+
 from django.conf import settings
 
+from koda.config.logging_config import configure_logger
 from resume.models import Resume
+from resume.utils.util_funcs import get_feedback_and_improve
+
+logger = configure_logger(__name__)
+
 
 def improve_resume(candidate_id):
     try:
