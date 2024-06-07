@@ -1,55 +1,55 @@
-autogenstudio
-boto3
-beautifulsoup4
-bleach[css]
-celery
-channels
-channels-redis
-daphne
-Django
-django-cors-headers
-django-countries
-django-extensions
-django-filter
-django-on-heroku
-django-ratelimit
-django-rest-passwordreset
-django-rest-swagger
-django-storages
-djangorestframework
-djangorestframework-simplejwt
-dj-database-url
-drf-spectacular
-drf-yasg
-factory_boy
-# google-apps-meet
-# google-auth
-# google-auth-oauthlib
-# google-cloud-pubsub
-google-cloud-storage
-gunicorn
-langchain
-langchain-openai
-llama-index
-markdown
-more-itertools
-numpy
-openai
-# open-interpreter
-pandas
-Pillow
-pinecone-client
-# playwright
-pyautogen
+# autogenstudio
+# boto3
+# beautifulsoup4
+# bleach[css]
+# celery
+# channels
+# channels-redis
+# daphne
+# Django
+# django-cors-headers
+# django-countries
+# django-extensions
+# django-filter
+# django-on-heroku
+# django-ratelimit
+# django-rest-passwordreset
+# django-rest-swagger
+# django-storages
+# djangorestframework
+# djangorestframework-simplejwt
+# dj-database-url
+# drf-spectacular
+# drf-yasg
+# factory_boy
+# # google-apps-meet
+# # google-auth
+# # google-auth-oauthlib
+# # google-cloud-pubsub
+# google-cloud-storage
+# gunicorn
+# langchain
+# langchain-openai
+# llama-index
+# markdown
+# more-itertools
+# numpy
+# openai
+# # open-interpreter
+# pandas
+# Pillow
+# pinecone-client
+# # playwright
+# pyautogen
 # # pymongo
-pyspellchecker
-python-decouple
-python-dotenv
-python-Levenshtein
-reportlab
-scikit-learn
-tabula-py
-textblob
-textstat
+# pyspellchecker
+# python-decouple
+# python-dotenv
+# python-Levenshtein
+# reportlab
+# scikit-learn
+# tabula-py
+# textblob
+# textstat
 tiktoken  # <0.5.0  # specifically required for open-interpreter at the moment
 unstructured[pdf]  # remove for space atm
