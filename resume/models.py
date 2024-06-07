@@ -1,98 +1,196 @@
+from uuid import uuid4
+
+from django.conf import settings
 from django.db import models
-from django.utils import timezone
 
-from accounts.models import User
-
-
-class Resume(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="resumes")
-    role = models.CharField(max_length=255)
-    name = models.CharField(max_length=255)
-    address = models.CharField(max_length=255)
-    phone = models.CharField(max_length=20)
-    email = models.EmailField()
-    linkedIn = models.URLField(blank=True, null=True)
-    summary = models.TextField()
-    version = models.IntegerField(default=1)
-    created_at = models.DateTimeField(default=timezone.now)
-
-    def __str__(self):
-        return f"Resume for {self.name}"
+from resume.utils import upload_directly_to_s3
 
 
-class UserUploadedResumePDF(models.Model):
-    resume = models.ForeignKey(
-        Resume, on_delete=models.CASCADE, related_name="uploaded_pdfs"
-    )
-    pdf_file = models.FileField(upload_to="user_uploaded_resumes/")
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+class DocBase(models.Model):
+    original_content = models.TextField(null=True, blank=True)
+    general_improved_content = models.TextField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
 
 
-class GeneratedResumePDF(models.Model):
-    resume = models.ForeignKey(
-        Resume, on_delete=models.CASCADE, related_name="generated_pdfs"
-    )
-    pdf_file = models.FileField(upload_to="generated_resumes/")
-    created_at = models.DateTimeField(auto_now_add=True)
+class AnalysisBase(models.Model):
+    readability_score = models.FloatField(null=True, blank=True)
+    sentiment_score = models.FloatField(null=True, blank=True)
+    tone_analysis = models.JSONField(null=True, blank=True)
+    analyzed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
 
 
-class Experience(models.Model):
-    resume = models.ForeignKey(
-        Resume, related_name="experiences", on_delete=models.CASCADE
-    )
-    company_name = models.CharField(max_length=255)
-    job_title = models.CharField(max_length=255)
-    start_date = models.CharField(max_length=20)
-    end_date = models.CharField(max_length=20, blank=True, null=True)
-    location = models.CharField(max_length=255, blank=True, null=True)
-    job_description = models.TextField()
+class JobPost(models.Model):
+    job_post_id = models.CharField(
+        max_length=255, unique=True
+    )  # ID from the Recruiting Platform
+    original_content = models.TextField(null=True, blank=True)
+    optimized_content = models.TextField(null=True, blank=True)
+    posted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.job_title} at {self.company_name}"
+        return self.job_post_id
 
 
-class Education(models.Model):
-    resume = models.ForeignKey(
-        Resume, related_name="education", on_delete=models.CASCADE
+class JobPostAnalysis(AnalysisBase):
+    job_post = models.ForeignKey(JobPost, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"Analysis for Job Post ID {self.job_post.job_post_id}"
+
+
+class CoverLetter(DocBase):
+    cover_letter_id = models.CharField(max_length=255, unique=True)
+    # original_pdf = models.FileField(
+    #     upload_to="cover_letters/original/", null=True, blank=True
+    # )
+    # general_improved_pdf = models.FileField(
+    #     upload_to="cover_letters/general_improved/", null=True, blank=True
+    # )
+    original_pdf_s3_key = models.CharField(max_length=1024, null=True, blank=True)
+    general_improved_pdf_s3_key = models.CharField(
+        max_length=1024, null=True, blank=True
     )
-    institution = models.CharField(max_length=255)
-    degree = models.CharField(max_length=255)
-    end_date = models.CharField(max_length=20)
-    location = models.CharField(max_length=255)
-    details = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.degree} from {self.institution}"
+        return f"Cover Letter ID {self.cover_letter_id}"
+
+    def upload_to_s3(self, file, is_general_improved=False):
+        s3_key = f"cover_letters/{'general_improved/' if is_general_improved else 'original/'}{uuid4()}.pdf"
+        upload_directly_to_s3(file, settings.AWS_STORAGE_BUCKET_NAME, s3_key)
+        if is_general_improved:
+            self.general_improved_pdf_s3_key = s3_key
+        else:
+            self.original_pdf_s3_key = s3_key
 
 
-class Skill(models.Model):
-    resume = models.ForeignKey(Resume, related_name="skills", on_delete=models.CASCADE)
-    name = models.CharField(max_length=255)
+class CoverLetterAnalysis(AnalysisBase):
+    cover_letter = models.ForeignKey(CoverLetter, on_delete=models.CASCADE)
+    keyword_matches = models.JSONField(null=True, blank=True)
 
     def __str__(self):
-        return self.name
+        return f"Analysis for Cover Letter ID {self.cover_letter.cover_letter_id}"
 
 
-class Certification(models.Model):
-    resume = models.ForeignKey(
-        Resume, related_name="certifications", on_delete=models.CASCADE
+# class OptimizedCoverLetterContent(models.Model):
+#     cover_letter = models.ForeignKey(CoverLetter, on_delete=models.CASCADE)
+#     optimized_content = models.TextField()
+#     optimized_pdf = models.FileField(
+#         upload_to="cover_letters/optimized/", null=True, blank=True
+#     )
+#     is_tailored = models.BooleanField(default=False)
+#     job_post = models.ForeignKey(
+#         JobPost, on_delete=models.CASCADE, null=True, blank=True
+#     )
+#     analysis = models.ForeignKey(
+#         CoverLetterAnalysis, on_delete=models.SET_NULL, null=True, blank=True
+#     )
+#     optimized_at = models.DateTimeField(auto_now_add=True)
+
+
+#     def __str__(self):
+#         tailored_str = "Tailored" if self.is_tailored else "General Improved"
+#         return f"{tailored_str} Content for Cover Letter ID {self.cover_letter.cover_letter_id}"
+
+
+class OptimizedCoverLetterContent(models.Model):
+    cover_letter = models.ForeignKey(CoverLetter, on_delete=models.CASCADE)
+    optimized_content = models.TextField()
+    optimized_pdf_s3_key = models.CharField(max_length=1024, null=True, blank=True)
+    is_tailored = models.BooleanField(default=False)
+    job_post = models.ForeignKey(
+        JobPost, on_delete=models.CASCADE, null=True, blank=True
     )
-    title = models.CharField(max_length=255)
-    issuing_organization = models.CharField(max_length=255)
-    date_obtained = models.CharField(max_length=20)
-    validity_period = models.CharField(max_length=20, blank=True, null=True)
-
-    def __str__(self):
-        return self.title
-
-
-class Reference(models.Model):
-    resume = models.ForeignKey(
-        Resume, related_name="references", on_delete=models.CASCADE
+    analysis = models.ForeignKey(
+        CoverLetterAnalysis, on_delete=models.SET_NULL, null=True, blank=True
     )
-    referee_name = models.CharField(max_length=255, blank=True, null=True)
-    relationship = models.CharField(max_length=255, blank=True, null=True)
-    contact_information = models.CharField(max_length=255, blank=True, null=True)
+    optimized_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Reference: {self.referee_name or 'Unavailable'}"
+        tailored_str = "Tailored" if self.is_tailored else "General Improved"
+        return f"{tailored_str} Content for Cover Letter ID {self.cover_letter.cover_letter_id}"
+
+    def upload_optimized_pdf_to_s3(self, file):
+        s3_key = f"cover_letters/optimized/{uuid4()}.pdf"
+        upload_directly_to_s3(file, settings.AWS_STORAGE_BUCKET_NAME, s3_key)
+        self.optimized_pdf_s3_key = s3_key
+
+
+class Resume(DocBase):
+    resume_id = models.CharField(max_length=255, unique=True)
+    # original_pdf = models.FileField(
+    #     upload_to="resumes/original/", null=True, blank=True
+    # )
+    # general_improved_pdf = models.FileField(
+    #     upload_to="resumes/general_improved/", null=True, blank=True
+    # )
+    original_pdf_s3_key = models.CharField(max_length=1024, null=True, blank=True)
+    general_improved_pdf_s3_key = models.CharField(
+        max_length=1024, null=True, blank=True
+    )
+
+    def __str__(self):
+        return f"Resume ID {self.resume_id}"
+
+    def upload_to_s3(self, file, is_general_improved=False):
+        s3_key = f"resumes/{'general_improved/' if is_general_improved else 'original/'}{uuid4()}.pdf"
+        upload_directly_to_s3(file, settings.AWS_STORAGE_BUCKET_NAME, s3_key)
+        if is_general_improved:
+            self.general_improved_pdf_s3_key = s3_key
+        else:
+            self.original_pdf_s3_key = s3_key
+
+
+class ResumeAnalysis(AnalysisBase):
+    resume = models.ForeignKey(Resume, on_delete=models.CASCADE)
+    keyword_matches = models.JSONField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Analysis for Resume ID {self.resume.resume_id}"
+
+
+# class OptimizedResumeContent(models.Model):
+#     resume = models.ForeignKey(Resume, on_delete=models.CASCADE)
+#     optimized_content = models.TextField()
+#     optimized_pdf = models.FileField(
+#         upload_to="resumes/optimized/", null=True, blank=True
+#     )
+#     is_tailored = models.BooleanField(default=False)
+#     analysis = models.ForeignKey(
+#         ResumeAnalysis, on_delete=models.SET_NULL, null=True, blank=True
+#     )
+#     job_post = models.ForeignKey(
+#         JobPost, on_delete=models.CASCADE, null=True, blank=True
+#     )
+#     optimized_at = models.DateTimeField(auto_now_add=True)
+
+#     def __str__(self):
+#         tailored_str = "Tailored" if self.is_tailored else "General Improved"
+#         return f"{tailored_str} Content for Cover Letter ID {self.resume.resume_id}"
+
+
+class OptimizedResumeContent(models.Model):
+    resume = models.ForeignKey(Resume, on_delete=models.CASCADE)
+    optimized_content = models.TextField()
+    optimized_pdf_s3_key = models.CharField(max_length=1024, null=True, blank=True)
+    is_tailored = models.BooleanField(default=False)
+    analysis = models.ForeignKey(
+        ResumeAnalysis, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    job_post = models.ForeignKey(
+        JobPost, on_delete=models.CASCADE, null=True, blank=True
+    )
+    optimized_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        tailored_str = "Tailored" if self.is_tailored else "General Improved"
+        return f"{tailored_str} Content for Resume ID {self.resume.resume_id}"  # Fixed reference to cover letter
+
+    def upload_optimized_pdf_to_s3(self, file):
+        s3_key = f"resumes/optimized/{uuid4()}.pdf"
+        upload_directly_to_s3(file, settings.AWS_STORAGE_BUCKET_NAME, s3_key)
+        self.optimized_pdf_s3_key = s3_key
