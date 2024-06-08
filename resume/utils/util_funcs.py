@@ -5,6 +5,7 @@ import boto3
 import textstat as textstat_analysis
 from django.conf import settings
 from langchain.schema import HumanMessage, SystemMessage
+
 from langchain_openai import ChatOpenAI
 from sklearn.feature_extraction.text import CountVectorizer
 from spellchecker import SpellChecker
@@ -12,13 +13,10 @@ from textblob import TextBlob
 
 from koda.config.base_config import openai_client as client
 from koda.config.logging_config import configure_logger
+from resume.pdf_gen import generate_resume_pdf, generate_formatted_pdf
+from resume.samples import default_cover_letter
 
 logger = configure_logger(__name__)
-
-
-def get_value(dictionary, key, default_value):
-    value = dictionary.get(key)
-    return default_value if value is None else value
 
 
 cover_letter_example_structure = json.dumps(
@@ -560,3 +558,53 @@ def get_full_url(s3_key):
 
 
 # =========================== DATABASE FUNCTIONS ===========================
+
+
+# =========================== TO BE REVIEWED ==============================
+async def improve_resume_with_analysis(resume_content):
+    readability = Readability(resume_content)
+    readability_feedback = await readability.get_readability_text(doc_type="resume")
+
+    sections_feedback = await resume_sections_feedback(resume_content)
+    feedbacks = [readability_feedback, sections_feedback]
+    resume_feedback = "\n\n".join(feedbacks)
+
+    improved_content = await improve_doc(
+        doc_type="resume",
+        doc_content=resume_content,
+        doc_feedback=resume_feedback,
+    )
+    return improved_content
+
+async def get_doc_urls(resume_content, job_post_content=None):
+    improved_content = await improve_resume_with_analysis(resume_content)
+    created_cl = await create_doc("cover letter", "resume", improved_content, default_cover_letter)
+
+    if job_post_content:
+        # Tailor resume and cover letter
+        resume_content = await optimize_doc(
+            doc_type="resume", doc_text=improved_content, job_description=job_post_content
+        )
+        cover_letter_content = await optimize_doc(
+            doc_type="cover letter", doc_text=created_cl, job_description=job_post_content
+        )
+        resume_key_suffix = "optimized"
+    else:
+        resume_content = improved_content
+        cover_letter_content = created_cl
+        resume_key_suffix = "improved"
+
+    id = uuid4()
+    resume_s3_key = f"media/resume/{resume_key_suffix}/{id}.pdf"
+    cl_s3_key = f"media/cl/{resume_key_suffix}/{id}.pdf"
+
+    resume_pdf = generate_resume_pdf(resume_content, filename=f"{resume_key_suffix.capitalize()} Resume.pdf")
+    cl_pdf = generate_formatted_pdf(cover_letter_content, filename=f"{resume_key_suffix.capitalize()} Cover Letter.pdf")
+
+    upload_directly_to_s3(resume_pdf, settings.AWS_STORAGE_BUCKET_NAME, resume_s3_key)
+    upload_directly_to_s3(cl_pdf, settings.AWS_STORAGE_BUCKET_NAME, cl_s3_key)
+
+    resume_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{resume_s3_key}"
+    cl_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{cl_s3_key}"
+
+    return resume_url, cl_url

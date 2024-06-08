@@ -3,7 +3,7 @@ from uuid import uuid4
 from django.conf import settings
 from django.db import models
 
-from resume.utils import upload_directly_to_s3
+from resume.utils.util_funcs import upload_directly_to_s3
 
 
 class DocBase(models.Model):

@@ -389,3 +389,18 @@ class Boto3UploadView(View):
 # applicant_id 63a6af57677ed8a015025a62
 # job_post_id 654194177b7c7c8236e8541f
 # job_post_id = 65aa68567bd03fff776fbfcf
+
+
+from django.core.files.storage import default_storage
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+
+@csrf_exempt
+def upload_resume(request):
+    if request.method == 'POST' and request.FILES['file']:
+        file = request.FILES['file']
+        file_key = f"temp/{uuid4()}_{file.name}"
+        path = default_storage.save(file_key, file)
+        return JsonResponse({'success': True, 'file_key': file_key})
+    return JsonResponse({'success': False}, status=400)

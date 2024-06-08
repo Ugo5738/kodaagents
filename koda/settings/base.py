@@ -205,7 +205,7 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Koda",
+    "TITLE": "Koda API",
     "DESCRIPTION": "Koda description",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": True,

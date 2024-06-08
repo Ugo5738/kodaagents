@@ -31,8 +31,12 @@ COPY . /code/
 # RUN pip install -r requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright and browsers
-RUN npm i -D playwright && npx playwright install
+# Verify installation
+RUN pip list
+RUN which daphne
+
+# # Install Playwright and browsers
+# RUN npm i -D playwright && npx playwright install
 
 # Give execute permissions to the entrypoint script
 RUN chmod +x /code/entrypoint.sh

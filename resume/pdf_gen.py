@@ -22,9 +22,13 @@ from reportlab.platypus import (
 
 from koda.config.logging_config import configure_logger
 from resume.samples import improved_resume_dict
-from resume.utils import get_value
 
 logger = configure_logger(__name__)
+
+
+def get_value(dictionary, key, default_value):
+    value = dictionary.get(key)
+    return default_value if value is None else value
 
 
 class HRFlowable(Flowable):
