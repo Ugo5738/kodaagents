@@ -83,5 +83,5 @@ urlpatterns = [
     ),
     # # =====================> Testing <=====================
     # path("upload/", views.Boto3UploadView.as_view(), name="upload"),
-    path("upload/", views.upload_resume, name="upload"),
+    path("upload-resume/", views.FileUploadView.as_view(), name="file-upload"),
 ]

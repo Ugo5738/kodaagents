@@ -16,7 +16,7 @@ from resume.models import (
 )
 from resume.pdf_gen import generate_formatted_pdf
 from resume.samples import default_cover_letter
-from resume.utils import (
+from resume.utils.util_funcs import (
     Polarity,
     Readability,
     check_grammar_and_spelling,

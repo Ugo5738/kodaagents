@@ -146,9 +146,9 @@ def get_origin_list(env_variable, default=""):
 
 
 # ==> CORS
-CORS_ALLOWED_ORIGINS = get_origin_list("CORS_ORIGINS")
-CORS_ALLOWED_CREDENTIALS = True
-# CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOWED_ORIGINS = get_origin_list("CORS_ORIGINS")
+# CORS_ALLOWED_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
 
 # ==> CSRF
 CSRF_TRUSTED_ORIGINS = get_origin_list("CSRF_TRUSTED_ORIGINS")

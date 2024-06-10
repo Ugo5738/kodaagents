@@ -5,7 +5,7 @@ from celery import shared_task
 
 from koda.config.logging_config import configure_logger
 from resume.models import JobPost
-from resume.utils import get_job_post_feedback, improve_doc
+from resume.utils.util_funcs import get_job_post_feedback, improve_doc
 
 # Logging setup
 logger = configure_logger(__name__)

@@ -73,6 +73,16 @@ name_style = ParagraphStyle(
     fontName="Helvetica-Bold",
 )
 
+job_title_style = ParagraphStyle(
+    "JobTitle",
+    parent=base_paragraph_style,
+    fontSize=14,
+    leading=16,
+    spaceAfter=6,
+    alignment=TA_LEFT,
+    fontName="Helvetica-Oblique",
+)
+
 contact_details_style = ParagraphStyle(
     "ContactDetails",
     parent=base_paragraph_style,
@@ -207,6 +217,7 @@ def create_bullet_list(items, bullet_style):
 # Function to add contact information
 def add_contact_info(story, contact_dict):
     name_text = get_value(contact_dict, "name", "")
+    job_title_text = get_value(contact_dict, "job_title", "")
     email_text = get_value(contact_dict, "email", "")
     phone_text = get_value(contact_dict, "phone", "")
     address_text = get_value(contact_dict, "address", "")
@@ -216,6 +227,9 @@ def add_contact_info(story, contact_dict):
 
     # Append the name with a special style
     story.append(Paragraph(name_text, name_style))
+
+    # Append the job title with a special style
+    story.append(Paragraph(job_title_text, job_title_style))
 
     # Append the address
     story.append(Paragraph(middle_contact_details, contact_details_style))
@@ -385,6 +399,7 @@ def generate_resume_pdf(improved_resume_dict, filename):
 improved_resume_dict = {
     "contact": {
         "name": "SARAH JOHNSON",
+        "job_title": "Registered Nurse Manager",
         "address": "Seattle, Washington",
         "phone": "+1-555-123-4567",
         "email": "sjohnsonnurse@example.com",
@@ -472,8 +487,11 @@ improved_resume_dict = {
         }
     ],
 }
+
 # generate_resume_pdf(improved_resume_dict, filename="resume.pdf")
 
+# ================================================================
+# ================================================================
 # Constants
 LEFT_MARGIN = 65
 RIGHT_MARGIN = 40
@@ -543,46 +561,25 @@ async def generate_formatted_pdf(response_text, filename, doc_type=None):
     y = height - TOP_MARGIN
 
     if doc_type == "CL":
-        if get_value(response_text, "sender_info", ""):
-            # Sender Info
-            sender_info = response_text["sender_info"]
-            sender_lines = [
-                sender_info["name"],
-                sender_info["address"],
-                sender_info["phone"],
-                sender_info["email"],
-                sender_info["date"],
-            ]
-            for line in sender_lines:
-                text_width = p.stringWidth(line, "Times-Roman", 12)
-                p.drawString(width - text_width - 72, y, line)
-                y -= 14
+        if isinstance(response_text, dict):
+            # Body text formatting (for dict)
+            body_text = response_text.get("body", "")
+            paragraphs = body_text.split("\n\n")
+            y = format_paragraphs(p, paragraphs, width, height, y, is_paragraph=True)
 
-        if get_value(response_text, "recipient_info", ""):
-            # Recipient Info
-            recipient_info = response_text["recipient_info"]
-            recipient_lines = [
-                recipient_info["name"],
-                recipient_info["address"],
-            ]
-            y -= 20  # Add a space before the recipient's info
-            for line in recipient_lines:
-                p.drawString(72, y, line)
-                y -= 14
-
-        # Body text formatting (for dict)
-        body_text = get_value(response_text, "body", "")
-        paragraphs = body_text.split("\n\n")
-        y = format_paragraphs(p, paragraphs, width, height, y, is_paragraph=True)
-
-        # Greeting Text Formatting
-        greeting_text = get_value(response_text, "concluding_greetings", "")
-        greeting_lines = greeting_text.split("\n\n")
-        y = format_paragraphs(p, greeting_lines, width, height, y, is_paragraph=False)
+            # Concluding Greetings Formatting
+            concluding_greetings = response_text.get("concluding_greetings", "")
+            greeting_lines = concluding_greetings.split("\n\n")
+            y = format_paragraphs(p, greeting_lines, width, height, y, is_paragraph=False)
+        else:
+            # Handle the case where response_text is a string
+            paragraphs = response_text.split("\n\n")
+            y = format_paragraphs(p, paragraphs, width, height, y, is_paragraph=True)
     else:
         # Handle the case where response_text is a string
         paragraphs = response_text.split("\n\n")
         y = format_paragraphs(p, paragraphs, width, height, y, is_paragraph=True)
+
     p.save()
     buffer.seek(0)
 
@@ -590,36 +587,35 @@ async def generate_formatted_pdf(response_text, filename, doc_type=None):
     logger.info(f"PDF CREATION TIME: {total}")
     return ContentFile(buffer.getvalue(), name=filename)
 
+# async def run_main():
+#     from asgiref.sync import sync_to_async
 
-async def run_main():
-    from asgiref.sync import sync_to_async
+#     from resume.models import CoverLetter, JobPost
+#     from resume.samples import improved_cover_letter_dict, optimized_cover_letter_dict
+#     from resume.utils import optimize_doc
 
-    from resume.models import CoverLetter, JobPost
-    from resume.samples import improved_cover_letter_dict, optimized_cover_letter_dict
-    from resume.utils import optimize_doc
+#     cover_letter_update = sync_to_async(
+#         CoverLetter.objects.update_or_create, thread_sensitive=True
+#     )
 
-    cover_letter_update = sync_to_async(
-        CoverLetter.objects.update_or_create, thread_sensitive=True
-    )
+#     # pdf_dict = improved_pdf_dict
+#     pdf_dict = optimized_cover_letter_dict
 
-    # pdf_dict = improved_pdf_dict
-    pdf_dict = optimized_cover_letter_dict
+#     if pdf_dict == improved_cover_letter_dict:
+#         improved_content = "content"
+#         pdf = generate_formatted_pdf(pdf_dict, "output.pdf", doc_type="CL")
 
-    if pdf_dict == improved_cover_letter_dict:
-        improved_content = "content"
-        pdf = generate_formatted_pdf(pdf_dict, "output.pdf", doc_type="CL")
+#         candidate_id = "111"
 
-        candidate_id = "111"
-
-        # Run the synchronous database update_or_create functions concurrently
-        cover_letter_instance, cover_letter_created = await cover_letter_update(
-            cover_letter_id=candidate_id,
-            defaults={
-                "general_improved_content": improved_content,
-                "general_improved_pdf": pdf,
-            },
-        )
-    elif pdf_dict == optimized_cover_letter_dict:
-        pdf = generate_formatted_pdf(
-            pdf_dict, filename="Optimized Cover Letter", doc_type="CL"
-        )
+#         # Run the synchronous database update_or_create functions concurrently
+#         cover_letter_instance, cover_letter_created = await cover_letter_update(
+#             cover_letter_id=candidate_id,
+#             defaults={
+#                 "general_improved_content": improved_content,
+#                 "general_improved_pdf": pdf,
+#             },
+#         )
+#     elif pdf_dict == optimized_cover_letter_dict:
+#         pdf = generate_formatted_pdf(
+#             pdf_dict, filename="Optimized Cover Letter", doc_type="CL"
+#         )

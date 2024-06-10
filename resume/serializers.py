@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from resume.utils import get_full_url
+from resume.utils.util_funcs import get_full_url
 
 from .models import (
     CoverLetter,

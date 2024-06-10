@@ -1,5 +1,6 @@
 import json
 import time
+from uuid import uuid4
 
 import boto3
 import textstat as textstat_analysis
@@ -75,6 +76,7 @@ resume_example_structure = json.dumps(
     {
         "contact": {
             "name": "Sender Name",
+            "job_title": "Job Title", 
             "address": "Sender Address",
             "phone": "Sender Phone",
             "email": "Sender Email",
@@ -166,6 +168,7 @@ async def get_chat_response(instruction, message, doc_type=None):
     chat = ChatOpenAI(
         temperature=0.7,
         model_name="gpt-4o",
+        # model_name="gpt-3.5-turbo-0125",
         openai_api_key=settings.OPENAI_API_KEY,
     )
 
@@ -186,6 +189,7 @@ async def get_chat_response(instruction, message, doc_type=None):
 
         structured_response = await client.chat.completions.create(
             model="gpt-4o",
+            # model_name="gpt-3.5-turbo-0125",
             messages=messages,
             response_format={"type": "json_object"},
         )
@@ -541,6 +545,9 @@ def upload_directly_to_s3(file, bucket_name, s3_key):
         # region_name='your-region',  # Uncomment and set your region if necessary
     )
 
+    if not hasattr(file, 'read'):
+        raise ValueError("File object must have a read method")
+
     # Include ExtraArgs to set content type and content disposition
     s3.upload_fileobj(
         file,
@@ -589,22 +596,24 @@ async def get_doc_urls(resume_content, job_post_content=None):
             doc_type="cover letter", doc_text=created_cl, job_description=job_post_content
         )
         resume_key_suffix = "optimized"
+        cover_letter_key_suffix = "optimized"
     else:
         resume_content = improved_content
         cover_letter_content = created_cl
         resume_key_suffix = "improved"
+        cover_letter_key_suffix = "improved"
 
     id = uuid4()
     resume_s3_key = f"media/resume/{resume_key_suffix}/{id}.pdf"
-    cl_s3_key = f"media/cl/{resume_key_suffix}/{id}.pdf"
+    cl_s3_key = f"media/cl/{cover_letter_key_suffix}/{id}.pdf"
 
     resume_pdf = generate_resume_pdf(resume_content, filename=f"{resume_key_suffix.capitalize()} Resume.pdf")
-    cl_pdf = generate_formatted_pdf(cover_letter_content, filename=f"{resume_key_suffix.capitalize()} Cover Letter.pdf")
-
+    cl_pdf = await generate_formatted_pdf(cover_letter_content, filename=f"{cover_letter_key_suffix.capitalize()} Cover Letter.pdf", doc_type="CL")
+    
     upload_directly_to_s3(resume_pdf, settings.AWS_STORAGE_BUCKET_NAME, resume_s3_key)
     upload_directly_to_s3(cl_pdf, settings.AWS_STORAGE_BUCKET_NAME, cl_s3_key)
 
     resume_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{resume_s3_key}"
     cl_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{cl_s3_key}"
-
+    
     return resume_url, cl_url

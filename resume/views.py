@@ -1,11 +1,16 @@
 import json
+import uuid
 
 import boto3
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views import View
 from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
 
 from resume.cl_opt import (
     customize_improved_cover_letter,
@@ -391,16 +396,29 @@ class Boto3UploadView(View):
 # job_post_id = 65aa68567bd03fff776fbfcf
 
 
-from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 
-@csrf_exempt
-def upload_resume(request):
-    if request.method == 'POST' and request.FILES['file']:
-        file = request.FILES['file']
-        file_key = f"temp/{uuid4()}_{file.name}"
-        path = default_storage.save(file_key, file)
-        return JsonResponse({'success': True, 'file_key': file_key})
-    return JsonResponse({'success': False}, status=400)
+# @csrf_exempt
+# def upload_resume(request):
+#     if request.method == 'POST' and request.FILES['file']:
+#         file = request.FILES['file']
+#         file_key = f"temp/{uuid4()}_{file.name}"
+#         path = default_storage.save(file_key, file)
+#         return JsonResponse({'success': True, 'file_key': file_key})
+#     return JsonResponse({'success': False}, status=400)
+
+
+class FileUploadView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        file_obj = request.data['file']
+        print("This is the file obj: ", file_obj)
+        file_key = f"temp/{uuid.uuid4()}_{file_obj.name}"
+        file_name = default_storage.save(file_key, file_obj)
+        print("This is the file name: ", file_name)
+        file_url = default_storage.url(file_name)
+        print("This is the file url: ", file_url)
+        return Response({"success": True, "file_key": file_name}, status=status.HTTP_200_OK)

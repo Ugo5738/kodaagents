@@ -9,7 +9,7 @@ from koda.config.logging_config import configure_logger
 from resume.job_post import optimize_job
 from resume.models import JobPost, OptimizedResumeContent, Resume
 from resume.pdf_gen import generate_resume_pdf
-from resume.utils import (
+from resume.utils.util_funcs import (
     Readability,
     customize_doc,
     improve_doc,
