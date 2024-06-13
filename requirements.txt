@@ -54,3 +54,4 @@ textblob
 textstat
 tiktoken  # <0.5.0  # specifically required for open-interpreter at the moment
 unstructured[pdf]  # remove for space atm
+psycopg2-binary
