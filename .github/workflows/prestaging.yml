@@ -116,6 +116,9 @@ jobs:
           
           cd /home/ubuntu/resumeoptimizer/
           
+          # # Start Docker service
+          # sudo systemctl start docker
+
           # Pull the latest image
           docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
