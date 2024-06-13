@@ -1,8 +1,8 @@
-name: Koda Backend CI/CD Pipeline (Staging)
+name: Resume Optimizer Backend CI/CD Pipeline (Prestaging)
 
 on:
   push:
-    branches: [ staging ]
+    branches: [ prestaging ]
   workflow_dispatch:
 
 jobs:
@@ -35,9 +35,6 @@ jobs:
         ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       
         # ------------------------- DATABASE ------------------------- 
-        POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-        POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-        POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
       
         # ------------------------- CORS ------------------------- 
@@ -61,14 +58,6 @@ jobs:
         
         # -------------------------- REDIS CONFIG ----------------------------
         REDIS_URL: ${{ secrets.REDIS_URL }}
-        
-        # -------------------------- MEETINGS ----------------------------
-        FIREFLIES_API_KEY: ${{ secrets.FIREFLIES_API_KEY }}
-      
-        # -------------------------- ZOOM ----------------------------
-        ZOOM_ACCOUNT_ID: ${{ secrets.ZOOM_ACCOUNT_ID }}
-        ZOOM_CLIENT_ID: ${{ secrets.ZOOM_CLIENT_ID }}
-        ZOOM_CLIENT_SECRET: ${{ secrets.ZOOM_CLIENT_SECRET }}
         # ===========================================================
 
       run: |
@@ -86,14 +75,14 @@ jobs:
         username: ${{ secrets.DOCKER_HUB_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-    - name: Build and Push Docker image for Staging
-      if: github.ref == 'refs/heads/staging'
+    - name: Build and Push Docker image for Prestaging
+      if: github.ref == 'refs/heads/prestaging'
       env:
         DOCKER_BUILDKIT: 1
       run: |  
-        docker build -t kodaagents:staging .
-        docker tag kodaagents:staging ${{ secrets.DOCKER_HUB_USERNAME }}/kodaagents:latest
-        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/kodaagents:latest
+        docker build -t resumeoptimizer:prestaging .
+        docker tag resumeoptimizer:prestaging ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
     - name: Setup SSH Key and Add to Known Hosts
       run: |
@@ -109,7 +98,7 @@ jobs:
         echo $GPG_PASSPHRASE | gpg --quiet --batch --yes --decrypt --passphrase-fd 0 --output ./.env ./.env.gpg
 
     - name: Transfer Repository to Remote Server (Including Decrypted .env)
-      run: rsync -avz -e "ssh -i ~/.ssh/id_rsa" ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/agency/
+      run: rsync -avz -e "ssh -i ~/.ssh/id_rsa" ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/resumeguru/
       
     - name: Execute Docker commands on remote server
       uses: appleboy/ssh-action@master
@@ -120,24 +109,14 @@ jobs:
         script: |
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           
-          cd /home/ubuntu/agency/
+          cd /home/ubuntu/resumeoptimizer/
           
           # Pull the latest image
-          docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/kodaagents:latest
+          docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
           # Ensure scripts are executable (in case they are not already)
-          chmod +x install_miniconda.sh
           chmod +x install_docker.sh
           chmod +x entrypoint.sh
-
-          # Check if Miniconda is installed
-          if [ ! -d "$HOME/miniconda" ]; then
-            echo "Installing Miniconda..."
-            ./install_miniconda.sh
-            source "$HOME/miniconda/bin/activate"
-          else
-            echo "Miniconda already installed."
-          fi
 
           # Check if Docker Compose is installed
           if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
@@ -167,7 +146,7 @@ jobs:
           (crontab -l | grep -q "/var/log/docker_cleanup.log") || (eval "$TOUCH_LOG_CMD")
 
           # Check if the cleanup cron job already exists
-            (crontab -l | grep -q "docker system prune") || (crontab -l 2>/dev/null; echo "$CRON_JOB") | sudo crontab -
+          (crontab -l | grep -q "docker system prune") || (crontab -l 2>/dev/null; echo "$CRON_JOB") | sudo crontab -
 
           # Ensure the cron service is running
           sudo service cron restart
@@ -175,6 +154,6 @@ jobs:
           # This cron job is scheduled to run at midnight every day, performing a Docker system prune
           # to remove unused Docker objects and logs the output to /var/log/docker_cleanup.log.
 
-# username = iamkoda
-# repo name = kodaagents
-# .env encrypt with kodaenv
+# username = resumeguru
+# repo name = resumeoptimizer
+# .env encrypt with resumeguruenv

@@ -13,11 +13,12 @@ django.setup()
 
 
 # Import the WebSocket routing definitions from each app after Django has been set up.
-from assistant.routing import websocket_urlpatterns as assistant_websocket_urlpatterns
+# from assistant.routing import websocket_urlpatterns as assistant_websocket_urlpatterns
 from resume.routing import websocket_urlpatterns as resume_websocket_urlpatterns
 
 # Combine all the WebSocket URL patterns.
-websocket_urlpatterns = assistant_websocket_urlpatterns + resume_websocket_urlpatterns
+# websocket_urlpatterns = assistant_websocket_urlpatterns + resume_websocket_urlpatterns
+websocket_urlpatterns = resume_websocket_urlpatterns
 
 application = ProtocolTypeRouter(
     {

@@ -1,7 +1,7 @@
-autogenstudio
+# autogenstudio
 boto3
-beautifulsoup4
-bleach[css]
+# beautifulsoup4
+# bleach[css]
 celery
 channels
 channels-redis
@@ -11,7 +11,7 @@ django-cors-headers
 django-countries
 django-extensions
 django-filter
-django-on-heroku
+# django-on-heroku
 django-ratelimit
 django-rest-passwordreset
 django-rest-swagger
@@ -21,13 +21,13 @@ djangorestframework-simplejwt
 dj-database-url
 drf-spectacular
 drf-yasg
-factory_boy
+# factory_boy
 # google-apps-meet
 # google-auth
 # google-auth-oauthlib
 # google-cloud-pubsub
-google-cloud-storage
-gunicorn
+# google-cloud-storage
+# gunicorn
 langchain
 langchain-community
 langchain-openai
@@ -39,9 +39,9 @@ openai
 # open-interpreter
 pandas
 Pillow
-pinecone-client
+# pinecone-client
 # playwright
-pyautogen
+# pyautogen
 # pymongo
 pyspellchecker
 python-decouple
@@ -53,4 +53,4 @@ tabula-py
 textblob
 textstat
 tiktoken  # <0.5.0  # specifically required for open-interpreter at the moment
-unstructured  # [pdf]  # remove for space atm
+unstructured[pdf]  # remove for space atm

@@ -1,4 +1,4 @@
-import django_on_heroku
+# import django_on_heroku
 
 from .base import *
 

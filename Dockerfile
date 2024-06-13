@@ -14,10 +14,6 @@ RUN apt-get update -y && \
     apt-get install -y chromium ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js for Playwright
-RUN curl -sL https://deb.nodesource.com/setup_21.x | bash - && \
-    apt-get install -y nodejs
-
 # Clean up APT when done
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -29,13 +25,6 @@ COPY . /code/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Verify installation
-RUN pip list
-RUN which daphne
-
-# Install Playwright and browsers
-RUN npm i -D playwright && npx playwright install
 
 # Give execute permissions to the entrypoint script
 RUN chmod +x /code/entrypoint.sh

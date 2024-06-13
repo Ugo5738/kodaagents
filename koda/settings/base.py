@@ -42,10 +42,10 @@ LOCAL_APPS = [
     # auth apps
     "accounts",
     # chat apps
-    "assistant",
+    # "assistant",
     # =====================
     # AUTOGEN AGENTS
-    "autogen",
+    # "autogen",
     # =====================
     # OINTERPRETER AGENTS
     # "ointerpsreter",
@@ -146,9 +146,9 @@ def get_origin_list(env_variable, default=""):
 
 
 # ==> CORS
-# CORS_ALLOWED_ORIGINS = get_origin_list("CORS_ORIGINS")
-# CORS_ALLOWED_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = get_origin_list("CORS_ORIGINS")
+CORS_ALLOWED_CREDENTIALS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
 # ==> CSRF
 CSRF_TRUSTED_ORIGINS = get_origin_list("CSRF_TRUSTED_ORIGINS")
@@ -229,9 +229,4 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 PINECONE_API_KEY = config("PINECONE_API_KEY")
 PINECONE_API_ENV = config("PINECONE_API_ENV")
 PINECONE_INDEX_NAME = config("PINECONE_INDEX_NAME")
-
-# ==> ZOOM
-ZOOM_ACCOUNT_ID = config("ZOOM_ACCOUNT_ID")
-ZOOM_CLIENT_ID = config("ZOOM_CLIENT_ID")
-ZOOM_CLIENT_SECRET = config("ZOOM_CLIENT_SECRET")
 # ================================ CUSTOM VARIABLES =======================================
