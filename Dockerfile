@@ -5,17 +5,12 @@ FROM python:3.11
 ENV PYTHONDONTWRITEBYTECODE 1
 # Force stdout and stderr to be unbuffered
 ENV PYTHONUNBUFFERED 1
-# Define the path for Playwright browsers
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Install necessary system dependencies including FFmpeg
 RUN apt-get update -y && \
     apt-get install -y openjdk-17-jdk poppler-utils tesseract-ocr wget gnupg2 netcat-openbsd && \
     apt-get install -y chromium ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Clean up APT when done
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /code

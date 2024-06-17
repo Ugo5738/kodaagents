@@ -13,6 +13,18 @@ services:
       - redis
     container_name: chat_app
 
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    ports:
+      - "80:80"
+      # Uncomment the following line if using SSL (443)
+      # - "443:443"
+    depends_on:
+      - web
+    container_name: nginx_reverse_proxy
+    
   celery:
     build:
       context: .
