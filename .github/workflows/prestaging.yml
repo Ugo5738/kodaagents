@@ -116,6 +116,11 @@ jobs:
           
           cd /home/ubuntu/resumeoptimizer/
 
+          # Create necessary directories
+          mkdir -p nginx/vhost.d
+          mkdir -p nginx/html
+          mkdir -p certs
+
           # Pull the latest image
           docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
