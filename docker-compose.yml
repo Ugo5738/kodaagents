@@ -34,7 +34,7 @@ services:
       - ./certs:/etc/nginx/certs:ro
       - ./nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx/html:/usr/share/nginx/html
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/my_custom.conf
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     environment:
       - DEFAULT_HOST=api.resumeguru.pro
 
@@ -48,7 +48,7 @@ services:
       - ./certs:/etc/nginx/certs:rw
     environment:
       - NGINX_PROXY_CONTAINER=nginx_reverse_proxy
-      - DEFAULT_EMAIL=your_email@example.com
+      - DEFAULT_EMAIL=resumegurupro@gmail.com
 
   celery:
     build:
