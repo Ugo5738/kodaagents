@@ -263,6 +263,14 @@ def add_experiences(doc, story, exp_dict):
                 location_text = get_value(exp_value, "location", "")
                 job_description_list = get_value(exp_value, "job_description", "")
 
+                # Ensure no NoneType values are passed to Paragraph
+                company_name_text = company_name_text or ""
+                start_date_text = start_date_text or ""
+                end_date_text = end_date_text or ""
+                job_role_text = job_role_text or ""
+                location_text = location_text or ""
+                job_description_list = job_description_list or []
+                
                 company_name = Paragraph(company_name_text, company_name_style)
                 duration = Paragraph(
                     start_date_text + " – " + end_date_text, duration_style
@@ -299,6 +307,11 @@ def add_education(doc, story, edu_list):
             location_text = get_value(edu, "location", "")
             end_date_text = get_value(edu, "end_date", "")
 
+            degree_text = degree_text or ""
+            institution_text = institution_text or ""
+            location_text = location_text or ""
+            end_date_text = end_date_text or ""
+            
             if degree_text or institution_text or location_text or end_date_text:
                 degree = Paragraph(degree_text, education_style_l)
                 institution = Paragraph(institution_text, education_style_l)
@@ -320,6 +333,7 @@ def add_skills(doc=None, story=None, skill_list=None):
         add_header_with_line(doc=doc, story=story, header_text="SKILLS")
 
         skills_string = ", ".join(skill_list)
+        skills_string = skills_string or ""
         story.append(Paragraph(skills_string, summary_style))
 
 
@@ -336,6 +350,10 @@ def add_certifications(doc=None, story=None, cert_list=None):
                 title_text = get_value(cert, "title", "")
                 issuing_organization_text = get_value(cert, "issuing_organization", "")
                 date_obtained_text = get_value(cert, "date_obtained", "")
+
+                title_text = title_text or ""
+                issuing_organization_text = issuing_organization_text or ""
+                date_obtained_text = date_obtained_text or ""
 
                 if title_text or issuing_organization_text or date_obtained_text:
                     certification_title = Paragraph(
@@ -371,7 +389,7 @@ def generate_resume_pdf(improved_resume_dict, filename):
 
     # Add sections to the document if they are not empty
     contact_info = get_value(improved_resume_dict, "contact", None)
-    if contact_info:
+    if contact_info and any(contact_info.values()):
         add_contact_info(story, contact_info)
         story.append(Spacer(1, 8))  # Add some space before the next section
 
@@ -381,25 +399,25 @@ def generate_resume_pdf(improved_resume_dict, filename):
         story.append(Spacer(1, 8))
 
     experiences = get_value(improved_resume_dict, "experiences", None)
-    if experiences:
+    if experiences and any(experiences.values()):
         add_experiences(doc, story, experiences)
         story.append(Spacer(1, 8))
 
     education = get_value(improved_resume_dict, "education", None)
-    if education:
+    if education and any(edu for edu in education if edu):
         add_education(doc, story, education)
         story.append(Spacer(1, 8))
 
     skills = get_value(improved_resume_dict, "skills", None)
-    if skills:
+    if skills and any(skills):
         add_skills(doc, story, skills)
         story.append(Spacer(1, 8))
 
     certifications = get_value(improved_resume_dict, "certifications", None)
-    if certifications:
+    if certifications and any(cert for cert in certifications if cert):
         add_certifications(doc, story, certifications)
         story.append(Spacer(1, 8))
-        
+
     # Optionally add projects if required
     # story.append(Spacer(1, 8))
     # add_projects(story, improved_resume_dict["projects"])

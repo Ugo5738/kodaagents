@@ -594,7 +594,7 @@ async def improve_resume_with_analysis(resume_content):
     )
     return improved_content
 
-async def get_doc_urls(resume_content, job_post_content=None):
+async def get_doc_urls(resume_content=None, job_post_content=None):
     start_time = time.time()
 
     improved_content = await improve_resume_with_analysis(resume_content)
@@ -621,8 +621,10 @@ async def get_doc_urls(resume_content, job_post_content=None):
     cl_s3_key = f"media/cl/{cover_letter_key_suffix}/{id}.pdf"
 
     resume_pdf = generate_resume_pdf(resume_content, filename=f"{resume_key_suffix.capitalize()} Resume.pdf")
+    print("Testing here 2")
     cl_pdf = await generate_formatted_pdf(cover_letter_content, filename=f"{cover_letter_key_suffix.capitalize()} Cover Letter.pdf", doc_type="CL")
-    
+    print("Testing here 3")
+
     upload_directly_to_s3(resume_pdf, settings.AWS_STORAGE_BUCKET_NAME, resume_s3_key)
     upload_directly_to_s3(cl_pdf, settings.AWS_STORAGE_BUCKET_NAME, cl_s3_key)
 

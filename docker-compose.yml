@@ -23,35 +23,35 @@ services:
     image: redis:latest
     container_name: chat_app_redis
 
-  # nginx-proxy:
-  #   image: jwilder/nginx-proxy
-  #   container_name: nginx_reverse_proxy
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - /var/run/docker.sock:/tmp/docker.sock:ro
-  #     - ./certs:/etc/nginx/certs:ro
-  #     - ./nginx/vhost.d:/etc/nginx/vhost.d
-  #     - ./nginx/html:/usr/share/nginx/html
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #   environment:
-  #     - DEFAULT_HOST=api.resumeguru.pro
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx_reverse_proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      - DEFAULT_HOST=api.resumeguru.pro
 
-  # letsencrypt-nginx-proxy-companion:
-  #   image: jrcs/letsencrypt-nginx-proxy-companion
-  #   container_name: nginx_letsencrypt
-  #   depends_on:
-  #     - nginx-proxy
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock:ro
-  #     - ./certs:/etc/nginx/certs:rw
-  #     - ./nginx/vhost.d:/etc/nginx/vhost.d
-  #     - ./nginx/html:/usr/share/nginx/html
-  #     - ./nginx/acme.sh:/etc/acme.sh
-  #   environment:
-  #     - NGINX_PROXY_CONTAINER=nginx_reverse_proxy
-  #     - DEFAULT_EMAIL=resumegurupro@gmail.com
+  letsencrypt-nginx-proxy-companion:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: nginx_letsencrypt
+    depends_on:
+      - nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/nginx/certs:rw
+      - ./nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/acme.sh:/etc/acme.sh
+    environment:
+      - NGINX_PROXY_CONTAINER=nginx_reverse_proxy
+      - DEFAULT_EMAIL=resumegurupro@gmail.com
 
   celery:
     build:

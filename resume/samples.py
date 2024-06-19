@@ -327,6 +327,7 @@ Instructions for Resume Optimization:
 
 1. Personalization:
     - Customize the resume for the specific job role and company.
+    - Get the job title of the resume from the job description.
     - Incorporate relevant keywords from the job description.
 
 2. Professional Summary:
@@ -348,8 +349,9 @@ cover_letter_optimization_instruction = """
 Instructions for Cover Letter Optimization:
 
 1. Personalization:
-    - Address the cover letter to the hiring manager by name, if possible.
+    - Address the cover letter to the hiring manager by name, if possible. If not use 'Dear Hiring Manager'.
     - Tailor the cover letter to the specific job and company, demonstrating knowledge of the company’s values, mission, and recent achievements.
+    - Ensure there are no placeholders like [Company Name] or [Job Posting Website/Company Career Page] in the final output. Use the information in the given texts to do your writing.
 
 2. Introduction:
     - Begin with a strong opening that captures the hiring manager’s attention.

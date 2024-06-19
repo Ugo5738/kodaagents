@@ -65,10 +65,10 @@ class ResumeConsumer(AsyncWebsocketConsumer):
                 # Load the document content based on file type
                 if file_extension == ".pdf":
                     loader = OnlinePDFLoader(temp_file_path)
-                elif file_extension == ".docx":
-                    doc = docx.Document(temp_file_path)
-                    doc_content = "\n".join([para.text for para in doc.paragraphs])
-                    loader = TextLoader(doc_content)
+                # elif file_extension == ".docx":
+                #     doc = docx.Document(temp_file_path)
+                #     doc_content = "\n".join([para.text for para in doc.paragraphs])
+                #     loader = TextLoader(doc_content)
                 else:
                     with open(temp_file_path, 'r', encoding='utf-8') as temp_file:
                         loader = TextLoader(temp_file.read())
