@@ -24,7 +24,7 @@ def get_chat_response(
     start_time = time.time()
 
     chat = ChatOpenAI(
-        temperature=0.7,
+        temperature=0.9,
         model_name=settings.MODEL_NAME,
         openai_api_key=settings.OPENAI_API_KEY,
     )
@@ -178,7 +178,6 @@ def refine_data(vision_transaction_data, sample_columns):
 
 
 def categorize_pdf(image_data_url, sample_columns):
-
     response = client.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=[

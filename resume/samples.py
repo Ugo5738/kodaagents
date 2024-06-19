@@ -320,3 +320,106 @@ improved_resume_dict = {
     ],
 }
 # ===================== RESUME =====================
+
+
+resume_optimization_instruction = """
+Instructions for Resume Optimization:
+
+1. Personalization:
+    - Customize the resume for the specific job role and company.
+    - Incorporate relevant keywords from the job description.
+
+2. Professional Summary:
+    - Craft a compelling summary that aligns with the desired job role and company culture.
+
+3. Experience:
+    - Emphasize skills and experiences that match the job requirements.
+    - Include specific examples of how the candidate has added value in previous roles.
+
+4. Skills:
+    - Highlight both hard and soft skills relevant to the job.
+
+5. Relevance and Brevity:
+    - Ensure all content is relevant to the job role and company.
+    - Keep the resume concise and focused on the job application.
+"""
+
+cover_letter_optimization_instruction = """
+Instructions for Cover Letter Optimization:
+
+1. Personalization:
+    - Address the cover letter to the hiring manager by name, if possible.
+    - Tailor the cover letter to the specific job and company, demonstrating knowledge of the company’s values, mission, and recent achievements.
+
+2. Introduction:
+    - Begin with a strong opening that captures the hiring manager’s attention.
+    - Mention the specific role the candidate is applying for and where they found the job posting.
+
+3. Body:
+    - Highlight key experiences and achievements that are most relevant to the job.
+    - Explain why the candidate is interested in the role and how their skills and experiences make them an ideal candidate.
+
+4. Company Fit:
+    - Demonstrate understanding of the company culture and how the candidate would be a good fit.
+    - Mention any mutual connections or references, if applicable.
+
+5. Conclusion:
+    - End with a strong closing statement expressing enthusiasm for the role.
+    - Politely request an interview and provide contact information.
+"""
+
+resume_improvement_instruction = """
+Instructions for Resume Improvement:
+
+1. Structure and Formatting:
+    - Ensure the resume is well-structured with clear sections: Contact Information, Summary, Experience, Education, Skills, Certifications, and any other relevant sections.
+    - Use a clean, professional format that is easy to read and ATS-friendly (Applicant Tracking System).
+
+2. Professional Summary:
+    - Craft a compelling summary at the top of the resume that highlights the candidate’s most relevant skills, experiences, and achievements.
+    - Ensure the summary aligns with the candidate's career goals.
+
+3. Experience:
+    - Detail work experience with a focus on achievements and quantifiable results rather than just responsibilities.
+    - Use action verbs and emphasize skills and experiences.
+
+4. Skills:
+    - Highlight both hard and soft skills relevant to the candidate's career.
+    - Ensure the skills section is comprehensive yet concise.
+
+5. Education and Certifications:
+    - List educational background and relevant certifications.
+    - Highlight any prestigious institutions or notable academic achievements.
+
+6. Grammar and Punctuation:
+    - Correct any grammatical, spelling, or punctuation errors.
+    - Ensure consistency in tense and person.
+"""
+
+cover_letter_improvement_instruction = """
+Instructions for Cover Letter Improvement:
+
+1. Structure and Formatting:
+    - Ensure the cover letter has a clear structure: Introduction, Body Paragraphs, and Conclusion.
+    - Use a professional format that is easy to read.
+
+2. Introduction:
+    - Begin with a strong opening that captures the reader’s attention.
+    - Mention the specific role the candidate is applying for and where they found the job posting.
+
+3. Body:
+    - Highlight key experiences and achievements that are relevant to the candidate's career.
+    - Explain why the candidate is interested in the role and how their skills and experiences make them an ideal candidate.
+
+4. Conclusion:
+    - End with a strong closing statement expressing enthusiasm for the role.
+    - Politely request an interview and provide contact information.
+
+5. Grammar and Punctuation:
+    - Correct any grammatical, spelling, or punctuation errors.
+    - Ensure consistency in tense and person.
+
+6. Tone and Language:
+    - Use a professional yet engaging tone.
+    - Ensure the language is clear, concise, and free of jargon or overly complex terms.
+"""

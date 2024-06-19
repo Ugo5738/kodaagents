@@ -14,6 +14,8 @@ from django.core.files.storage import default_storage
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
+import docx
+
 logger = configure_logger(__name__)
 
 class ResumeConsumer(AsyncWebsocketConsumer):
@@ -63,6 +65,10 @@ class ResumeConsumer(AsyncWebsocketConsumer):
                 # Load the document content based on file type
                 if file_extension == ".pdf":
                     loader = OnlinePDFLoader(temp_file_path)
+                elif file_extension == ".docx":
+                    doc = docx.Document(temp_file_path)
+                    doc_content = "\n".join([para.text for para in doc.paragraphs])
+                    loader = TextLoader(doc_content)
                 else:
                     with open(temp_file_path, 'r', encoding='utf-8') as temp_file:
                         loader = TextLoader(temp_file.read())
@@ -96,7 +102,9 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({"error": "Missing message key"}))
         except Exception as e:
             logger.info("=========================== GENERAL ERROR DETECTED ===========================")
-            logger.info(e)
+            logger.info(f"Error: {e}")
+            logger.info(f"File Extension: {file_extension}")
+            logger.info(f"File Path: {temp_file_path}")
             await self.send(text_data=json.dumps({"error": str(e)}))
 
     async def resume_message(self, event):

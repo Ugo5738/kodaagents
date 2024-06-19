@@ -45,6 +45,7 @@ Pillow
 # pymongo
 pyspellchecker
 python-decouple
+python-docx
 python-dotenv
 python-Levenshtein
 reportlab

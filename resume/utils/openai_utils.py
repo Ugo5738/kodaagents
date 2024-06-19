@@ -20,7 +20,7 @@ async def get_chat_response(instruction, message, doc_type=None):
     start_time = time.time()
 
     chat = ChatOpenAI(
-        temperature=0.7,
+        temperature=0.9,
         model_name=settings.MODEL_NAME,
         openai_api_key=settings.OPENAI_API_KEY,
     )

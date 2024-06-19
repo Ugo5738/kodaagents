@@ -15,7 +15,7 @@ from textblob import TextBlob
 from koda.config.base_config import openai_client as client
 from koda.config.logging_config import configure_logger
 from resume.pdf_gen import generate_resume_pdf, generate_formatted_pdf
-from resume.samples import default_cover_letter
+from resume.samples import default_cover_letter, resume_improvement_instruction, cover_letter_improvement_instruction, cover_letter_optimization_instruction, resume_optimization_instruction
 
 logger = configure_logger(__name__)
 
@@ -166,7 +166,7 @@ async def get_chat_response(instruction, message, doc_type=None):
     start_time = time.time()
 
     chat = ChatOpenAI(
-        temperature=0.7,
+        temperature=0.9,
         model_name="gpt-4o",
         # model_name="gpt-3.5-turbo-0125",
         openai_api_key=settings.OPENAI_API_KEY,
@@ -406,7 +406,13 @@ async def improve_doc(doc_type, doc_content, doc_feedback):
         f"----------------------- {doc_type_upper} OPTIMIZATION STARTED -----------------------"
     )
 
-    instruction_base = f"Provide an optimized version of the {doc_type}. if profile data is present ALWAYS GIVE PRIORITY TO THE APPLICANT PROFILE CONTACT AND/OR PROFILE DETAILS if present over the general {doc_type_upper} information even when there is an overlap"
+    instruction_base = f"Objective: Improve the quality of {doc_type}s to ensure they are professional, well-structured, and highlight the candidate's strengths and experiences."    
+    
+    if doc_type == "resume":
+        instruction_base = instruction_base + "\n\n" + resume_improvement_instruction
+    elif doc_type == "cover letter":
+        instruction_base = instruction_base + "\n\n" + cover_letter_improvement_instruction
+
     if doc_feedback:
         instruction = f"{instruction_base} Use the feedback provided and ensure not to miss out on any part of the document"
         content_feedback_combined = f"ORIGINAL CONTENT:\n{doc_content}\n\n{doc_type_upper} FEEDBACK:\n{doc_feedback}"
@@ -509,9 +515,14 @@ async def keyword_analysis1(doc_text_1, doc_text_2):
 async def optimize_doc(doc_type, doc_text, job_description):
     logger.info("----------------------- OPTIMIZATION -----------------------")
     instruction = f"""
-        You are a professional recruiter that helps individuals optimize their {doc_type}. \
-        Please provide an optimized version of the {doc_type} by tailoring it to fit job post.
+        You are a seasoned professional recruiter with decades experience that helps individuals optimize their {doc_type}. \
+        Your objective is to provide an optimized {doc_type}s to increase the likelihood of securing an interview at top brands across various industries by tailoring them to specific job descriptions.
     """
+
+    if doc_type == "resume":
+        instruction = instruction + "\n\n" + resume_optimization_instruction
+    elif doc_type == "cover letter":
+        instruction = instruction + "\n\n" + cover_letter_optimization_instruction
 
     content = f"""
     ORIGINAL CONTENT:
@@ -584,6 +595,8 @@ async def improve_resume_with_analysis(resume_content):
     return improved_content
 
 async def get_doc_urls(resume_content, job_post_content=None):
+    start_time = time.time()
+
     improved_content = await improve_resume_with_analysis(resume_content)
     created_cl = await create_doc("cover letter", "resume", improved_content, default_cover_letter)
 
@@ -615,5 +628,8 @@ async def get_doc_urls(resume_content, job_post_content=None):
 
     resume_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{resume_s3_key}"
     cl_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{cl_s3_key}"
-    
+
+    duration = time.time() - start_time
+    logger.info(f"ENTIRE PROCESS TOOk {duration} seconds")    
+
     return resume_url, cl_url

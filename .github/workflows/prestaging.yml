@@ -119,6 +119,7 @@ jobs:
           # Create necessary directories
           mkdir -p nginx/vhost.d
           mkdir -p nginx/html
+          mkdir -p nginx/acme.sh
           mkdir -p certs
 
           # Pull the latest image

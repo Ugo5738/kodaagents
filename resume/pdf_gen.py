@@ -27,8 +27,9 @@ logger = configure_logger(__name__)
 
 
 def get_value(dictionary, key, default_value):
-    value = dictionary.get(key)
-    return default_value if value is None else value
+    if isinstance(dictionary, dict):
+        return dictionary.get(key, default_value)
+    return default_value
 
 
 class HRFlowable(Flowable):
@@ -223,126 +224,132 @@ def add_contact_info(story, contact_dict):
     address_text = get_value(contact_dict, "address", "")
     linkedIn_url = get_value(contact_dict, "linkedIn", "")
 
-    middle_contact_details = f"{email_text} | {phone_text} | {address_text}"
+    middle_contact_details = " | ".join(
+        [text for text in [email_text, phone_text, address_text] if text]
+    )
 
-    # Append the name with a special style
-    story.append(Paragraph(name_text, name_style))
+    if name_text:
+        story.append(Paragraph(name_text, name_style))
 
-    # Append the job title with a special style
-    story.append(Paragraph(job_title_text, job_title_style))
+    if job_title_text:
+        story.append(Paragraph(job_title_text, job_title_style))
 
-    # Append the address
-    story.append(Paragraph(middle_contact_details, contact_details_style))
+    if middle_contact_details:
+        story.append(Paragraph(middle_contact_details, contact_details_style))
 
-    # Append the LinkedIn URL
-    if "linkedIn" in contact_dict:
-        # Use Paragraph to allow link styling
+    if linkedIn_url:
         linkedin = f'<link href="{linkedIn_url}" color="blue">{linkedIn_url}</link>'
         story.append(Paragraph(linkedin, linkedin_style))
 
 
 # Function to add contact information
 def add_summary(doc=None, story=None, summary_text=None):
-    add_header_with_line(doc=doc, story=story, header_text="SUMMARY")
-
-    # Append the name with a special style
-    story.append(Paragraph(summary_text, summary_style))
+    if summary_text:
+        add_header_with_line(doc=doc, story=story, header_text="SUMMARY")
+        story.append(Paragraph(summary_text, summary_style))
 
 
 # Function to add experiences
 def add_experiences(doc, story, exp_dict):
-    add_header_with_line(doc=doc, story=story, header_text="EXPERIENCES")
+    if exp_dict:
+        add_header_with_line(doc=doc, story=story, header_text="EXPERIENCES")
 
-    for exp_key, exp_value in exp_dict.items():
-        if exp_value:
-            company_name_text = get_value(exp_value, "company_name", "")
-            start_date_text = get_value(exp_value, "start_date", "")
-            end_date_text = get_value(exp_value, "end_date", "")
-            job_role_text = get_value(exp_value, "job_role", "")
-            location_text = get_value(exp_value, "location", "")
-            job_description_list = get_value(exp_value, "job_description", "")
+        for exp_key, exp_value in exp_dict.items():
+            if exp_value:
+                company_name_text = get_value(exp_value, "company_name", "")
+                start_date_text = get_value(exp_value, "start_date", "")
+                end_date_text = get_value(exp_value, "end_date", "")
+                job_role_text = get_value(exp_value, "job_role", "")
+                location_text = get_value(exp_value, "location", "")
+                job_description_list = get_value(exp_value, "job_description", "")
 
-            company_name = Paragraph(company_name_text, company_name_style)
-            duration = Paragraph(
-                start_date_text + " – " + end_date_text, duration_style
-            )
-            job_role = Paragraph(job_role_text, job_role_style)
-            location = Paragraph(location_text, location_style)
-
-            # Add a company table
-            company_table_data = [[company_name, duration], [job_role, location]]
-            story.append(
-                create_company_table(
-                    company_table_data, [doc.width * 0.5, doc.width * 0.5]
+                company_name = Paragraph(company_name_text, company_name_style)
+                duration = Paragraph(
+                    start_date_text + " – " + end_date_text, duration_style
                 )
-            )
+                job_role = Paragraph(job_role_text, job_role_style)
+                location = Paragraph(location_text, location_style)
 
-            # Add job descriptions
-            story.append(create_bullet_list(job_description_list, job_desc_style))
-            story.append(Spacer(1, 5))
-        else:
-            print("There is no experience here")
+                # Add a company table
+                company_table_data = [[company_name, duration], [job_role, location]]
+                story.append(
+                    create_company_table(
+                        company_table_data, [doc.width * 0.5, doc.width * 0.5]
+                    )
+                )
+
+                # Add job descriptions
+                story.append(create_bullet_list(job_description_list, job_desc_style))
+                story.append(Spacer(1, 5))
+            else:
+                print("There is no experience here")
 
 
 # Function to add education
 def add_education(doc, story, edu_list):
-    add_header_with_line(doc=doc, story=story, header_text="EDUCATION")
+    if edu_list:
+        add_header_with_line(doc=doc, story=story, header_text="EDUCATION")
 
-    column_width_large = doc.width * 0.75
-    column_width_small = doc.width * 0.25
+        column_width_large = doc.width * 0.75
+        column_width_small = doc.width * 0.25
 
-    for edu in edu_list:
-        degree_text = get_value(edu, "degree", "No degree")
-        institution_text = get_value(edu, "institution", "No institution")
-        location_text = get_value(edu, "location", "No location")
-        end_date_text = get_value(edu, "end_date", "No end date")
+        for edu in edu_list:
+            degree_text = get_value(edu, "degree", "")
+            institution_text = get_value(edu, "institution", "")
+            location_text = get_value(edu, "location", "")
+            end_date_text = get_value(edu, "end_date", "")
 
-        degree = Paragraph(degree_text, education_style_l)
-        institution = Paragraph(institution_text, education_style_l)
-        location = Paragraph(location_text, education_style_r)
-        end_date = Paragraph(end_date_text, education_style_r)
+            if degree_text or institution_text or location_text or end_date_text:
+                degree = Paragraph(degree_text, education_style_l)
+                institution = Paragraph(institution_text, education_style_l)
+                location = Paragraph(location_text, education_style_r)
+                end_date = Paragraph(end_date_text, education_style_r)
 
-        # Add a education table
-        education_table_data = [[institution, end_date], [degree, location]]
-        story.append(
-            create_company_table(
-                education_table_data, [column_width_large, column_width_small]
-            )
-        )
+                # Add a education table
+                education_table_data = [[institution, end_date], [degree, location]]
+                story.append(
+                    create_company_table(
+                        education_table_data, [column_width_large, column_width_small]
+                    )
+                )
 
 
 # Function to add skills
 def add_skills(doc=None, story=None, skill_list=None):
-    add_header_with_line(doc=doc, story=story, header_text="SKILLS")
+    if skill_list:
+        add_header_with_line(doc=doc, story=story, header_text="SKILLS")
 
-    skills_string = ", ".join(skill_list)
-    story.append(Paragraph(skills_string, summary_style))
+        skills_string = ", ".join(skill_list)
+        story.append(Paragraph(skills_string, summary_style))
 
 
 # Function to add certifications
 def add_certifications(doc=None, story=None, cert_list=None):
-    add_header_with_line(doc=doc, story=story, header_text="CERTIFICATIONS")
+    if cert_list:
+        add_header_with_line(doc=doc, story=story, header_text="CERTIFICATIONS")
 
-    column_width_large = doc.width * 0.75
-    column_width_small = doc.width * 0.25
+        column_width_large = doc.width * 0.75
+        column_width_small = doc.width * 0.25
 
-    for cert in cert_list:
-        title_text = get_value(cert, "title", "")
-        issuing_organization_text = get_value(cert, "issuing_organization", "")
-        date_obtained_text = get_value(cert, "date_obtained", "")
+        for cert in cert_list:
+            if cert is not None:
+                title_text = get_value(cert, "title", "")
+                issuing_organization_text = get_value(cert, "issuing_organization", "")
+                date_obtained_text = get_value(cert, "date_obtained", "")
 
-        certification_title = Paragraph(
-            f"{title_text} - {issuing_organization_text}", doc_style_l
-        )
-        date = Paragraph(f"{date_obtained_text}", doc_style_r)
+                if title_text or issuing_organization_text or date_obtained_text:
+                    certification_title = Paragraph(
+                        f"{title_text} - {issuing_organization_text}", doc_style_l
+                    )
+                    date = Paragraph(f"{date_obtained_text}", doc_style_r)
 
-        # Add a education table
-        certification_table_data = [[certification_title, date]]
-        story.append(
-            create_company_table(
-                certification_table_data, [column_width_large, column_width_small]
-            )
-        )
+                    # Add a education table
+                    certification_table_data = [[certification_title, date]]
+                    story.append(
+                        create_company_table(
+                            certification_table_data, [column_width_large, column_width_small]
+                        )
+                    )
 
 
 # # Function to add projects
@@ -362,24 +369,37 @@ def generate_resume_pdf(improved_resume_dict, filename):
     doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, topMargin=36)
     story = []
 
-    # Add sections to the document
-    add_contact_info(story, get_value(improved_resume_dict, "contact", ""))
-    story.append(Spacer(1, 8))  # Add some space before the next section
-    add_summary(
-        doc=doc,
-        story=story,
-        summary_text=get_value(improved_resume_dict, "summary", ""),
-    )
-    story.append(Spacer(1, 8))
-    add_experiences(doc, story, get_value(improved_resume_dict, "experiences", ""))
-    story.append(Spacer(1, 8))
-    add_education(doc, story, get_value(improved_resume_dict, "education", ""))
-    story.append(Spacer(1, 8))
-    add_skills(doc, story, get_value(improved_resume_dict, "skills", ""))
-    story.append(Spacer(1, 8))
-    add_certifications(
-        doc, story, get_value(improved_resume_dict, "certifications", "")
-    )
+    # Add sections to the document if they are not empty
+    contact_info = get_value(improved_resume_dict, "contact", None)
+    if contact_info:
+        add_contact_info(story, contact_info)
+        story.append(Spacer(1, 8))  # Add some space before the next section
+
+    summary_text = get_value(improved_resume_dict, "summary", "")
+    if summary_text:
+        add_summary(doc=doc, story=story, summary_text=summary_text)
+        story.append(Spacer(1, 8))
+
+    experiences = get_value(improved_resume_dict, "experiences", None)
+    if experiences:
+        add_experiences(doc, story, experiences)
+        story.append(Spacer(1, 8))
+
+    education = get_value(improved_resume_dict, "education", None)
+    if education:
+        add_education(doc, story, education)
+        story.append(Spacer(1, 8))
+
+    skills = get_value(improved_resume_dict, "skills", None)
+    if skills:
+        add_skills(doc, story, skills)
+        story.append(Spacer(1, 8))
+
+    certifications = get_value(improved_resume_dict, "certifications", None)
+    if certifications:
+        add_certifications(doc, story, certifications)
+        story.append(Spacer(1, 8))
+        
     # Optionally add projects if required
     # story.append(Spacer(1, 8))
     # add_projects(story, improved_resume_dict["projects"])
@@ -396,97 +416,176 @@ def generate_resume_pdf(improved_resume_dict, filename):
     return ContentFile(pdf_value, name=filename)
 
 
-improved_resume_dict = {
-    "contact": {
-        "name": "SARAH JOHNSON",
-        "job_title": "Registered Nurse Manager",
-        "address": "Seattle, Washington",
-        "phone": "+1-555-123-4567",
-        "email": "sjohnsonnurse@example.com",
-        "linkedIn": "https://www.linkedin.com/in/sarah-johnson-rn",
-    },
-    "summary": "Highly experienced and strategic Registered Nurse with over 10 years of clinical experience, including 5+ years in leadership roles focused on inpatient care. Proven track record in enhancing patient care, streamlining department operations, and leading healthcare teams towards excellence. Eager to contribute to AMCE's mission by bringing a culture of clinical excellence and patient-centered care to a diverse patient population.",
-    "experiences": {
-        "experience_1": {
-            "company_name": "Seattle General Hospital",
-            "job_role": "Registered Nurse",
-            "start_date": "June 2019",
-            "end_date": "Present",
-            "location": "Seattle, Washington",
-            "job_description": [
-                "Oversee patient care delivery in a high-traffic emergency department, developing and executing strategies to reduce wait times and enhance service quality.",
-                "Spearhead a comprehensive review and overhaul of patient triage protocol, resulting in a 30% leap in departmental efficiency and patient throughput.",
-                "Pioneer patient education initiatives to tackle chronic disease management, yielding a significant improvement in patient compliance and outcomes.",
-            ],
-        },
-        "experience_2": {
-            "job_title": "Staff Nurse",
-            "start_date": "January 2017",
-            "end_date": "June 2019",
-            "job_description": "Managed and coordinated end-to-end patient care for various medical cases within a 30-bed inpatient unit, consistently scoring high on patient satisfaction metrics.",
-        },
-        "experience_3": {
-            "job_title": "Community Health Nurse",
-            "start_date": "July 2015",
-            "end_date": "December 2016",
-            "job_description": "Executed primary care services and health education for underserved communities, with an emphasis on preventative care and wellness.",
-        },
-    },
-    "education": [
-        {
-            "institution": "University of Washington",
-            "degree": "Master of Science in Nursing (MSN)",
-            "end_date": "June 2015",
-            "location": "Seattle, Washington",
-            "details": "Focused on Healthcare Leadership and Management",
-        }
-    ],
-    "skills": [
-        "Clinical Management",
-        "Team Leadership",
-        "Strategic Planning",
-        "Patient Education",
-        "Quality Assurance",
-        "Healthcare Regulation Compliance",
-        "Interdisciplinary Collaboration",
-        "Health Informatics",
-        "Patient Advocacy",
-        "Mentorship Programs",
-    ],
-    "certifications": [
-        {
-            "title": "Certified Emergency Nurse (CEN)",
-            "issuing_organization": "Institute of Michigan",
-            "date_obtained": "August 2016",
-            "validity_period": None,
-        },
-        {
-            "title": "Trauma Nursing Core Course (TNCC)",
-            "issuing_organization": "Institute of Michigan",
-            "date_obtained": "March 2018",
-            "validity_period": "4 years",
-        },
-        {
-            "title": "Pediatric Advanced Life Support (PALS)",
-            "issuing_organization": "Institute of Michigan",
-            "date_obtained": "May 2017",
-            "validity_period": "2 years",
-        },
-        {
-            "title": "Registered Nurse (RN) License, State of Washington",
-            "issuing_organization": "Institute of Michigan",
-            "date_obtained": "June 2015",
-            "validity_period": None,
-        },
-    ],
-    "references": [
-        {
-            "referee_name": "Available upon request.",
-            "relationship": None,
-            "contact_information": None,
-        }
-    ],
-}
+# improved_resume_dict = {
+#     "contact": {
+#         "name": "SARAH JOHNSON",
+#         "job_title": "Registered Nurse Manager",
+#         "address": "Seattle, Washington",
+#         "phone": "+1-555-123-4567",
+#         "email": "sjohnsonnurse@example.com",
+#         "linkedIn": "https://www.linkedin.com/in/sarah-johnson-rn",
+#     },
+#     "summary": "Highly experienced and strategic Registered Nurse with over 10 years of clinical experience, including 5+ years in leadership roles focused on inpatient care. Proven track record in enhancing patient care, streamlining department operations, and leading healthcare teams towards excellence. Eager to contribute to AMCE's mission by bringing a culture of clinical excellence and patient-centered care to a diverse patient population.",
+#     "experiences": {
+#         "experience_1": {
+#             "company_name": "Seattle General Hospital",
+#             "job_role": "Registered Nurse",
+#             "start_date": "June 2019",
+#             "end_date": "Present",
+#             "location": "Seattle, Washington",
+#             "job_description": [
+#                 "Oversee patient care delivery in a high-traffic emergency department, developing and executing strategies to reduce wait times and enhance service quality.",
+#                 "Spearhead a comprehensive review and overhaul of patient triage protocol, resulting in a 30% leap in departmental efficiency and patient throughput.",
+#                 "Pioneer patient education initiatives to tackle chronic disease management, yielding a significant improvement in patient compliance and outcomes.",
+#             ],
+#         },
+#         "experience_2": {
+#             "job_title": "Staff Nurse",
+#             "start_date": "January 2017",
+#             "end_date": "June 2019",
+#             "job_description": "Managed and coordinated end-to-end patient care for various medical cases within a 30-bed inpatient unit, consistently scoring high on patient satisfaction metrics.",
+#         },
+#         "experience_3": {
+#             "job_title": "Community Health Nurse",
+#             "start_date": "July 2015",
+#             "end_date": "December 2016",
+#             "job_description": "Executed primary care services and health education for underserved communities, with an emphasis on preventative care and wellness.",
+#         },
+#     },
+#     "education": [
+#         {
+#             "institution": "University of Washington",
+#             "degree": "Master of Science in Nursing (MSN)",
+#             "end_date": "June 2015",
+#             "location": "Seattle, Washington",
+#             "details": "Focused on Healthcare Leadership and Management",
+#         }
+#     ],
+#     "skills": [
+#         "Clinical Management",
+#         "Team Leadership",
+#         "Strategic Planning",
+#         "Patient Education",
+#         "Quality Assurance",
+#         "Healthcare Regulation Compliance",
+#         "Interdisciplinary Collaboration",
+#         "Health Informatics",
+#         "Patient Advocacy",
+#         "Mentorship Programs",
+#     ],
+#     "certifications": [
+#         {
+#             "title": "Certified Emergency Nurse (CEN)",
+#             "issuing_organization": "Institute of Michigan",
+#             "date_obtained": "August 2016",
+#             "validity_period": None,
+#         },
+#         {
+#             "title": "Trauma Nursing Core Course (TNCC)",
+#             "issuing_organization": "Institute of Michigan",
+#             "date_obtained": "March 2018",
+#             "validity_period": "4 years",
+#         },
+#         {
+#             "title": "Pediatric Advanced Life Support (PALS)",
+#             "issuing_organization": "Institute of Michigan",
+#             "date_obtained": "May 2017",
+#             "validity_period": "2 years",
+#         },
+#         {
+#             "title": "Registered Nurse (RN) License, State of Washington",
+#             "issuing_organization": "Institute of Michigan",
+#             "date_obtained": "June 2015",
+#             "validity_period": None,
+#         },
+#     ],
+#     "references": [
+#         {
+#             "referee_name": "Available upon request.",
+#             "relationship": None,
+#             "contact_information": None,
+#         }
+#     ],
+# }
+
+# improved_resume_dict = {
+#     'contact': {
+#         'name': 'Chris Ukachu', 
+#         'job_title': 'Website Designer', 
+#         'address': 'Apapa, Lagos', 
+#         'phone': '+2347017132725', 
+#         'email': 'chrisukachu@gmail.com', 
+#         'linkedIn': None
+#     }, 
+#     'summary': 'Results-driven website designer with over 4 years of experience in creating user-centric and visually appealing digital experiences. Passionate about leveraging data to drive decision-making and optimize business processes, seeking to transition into a data analyst role. Eager to apply strong analytical skills, proficiency in data visualization tools, and a keen eye for detail to extract meaningful insights and contribute to data-driven strategies. Committed to continuous learning and staying abreast of industry trends to deliver impactful results.', 
+#     'experiences': {
+#         'experience_1': {
+#             'company_name': 'Kaycee Shortlets', 
+#             'job_role': 'Wordpress Web Developer', 
+#             'start_date': '2022', 
+#             'end_date': '2024', 
+#             'location': 'Surulere, Lagos', 
+#             'job_description': [
+#                 'Customized themes to align with brand guidelines, resulting in a cohesive and visually appealing online presence.', 
+#                 'Integrated and configured third-party plugins to enhance website features.', 
+#                 'Created visually appealing, responsive website designs that improved user engagement by 25%.', 
+#                 'Configured and managed payment gateways, optimizing the checkout process and reducing cart abandonment by 15%.', 
+#                 'Optimized website performance, including improving loading speeds and SEO, resulting in a 40% increase in organic traffic.', 
+#                 'Implemented and customized e-commerce solutions using WooCommerce or other WordPress-compatible platforms.', 
+#                 'Developed and customized Shopify stores using HTML, CSS, JavaScript, and Liquid, leading to a 30% increase in user engagement.'
+#             ]
+#         }, 
+#         'experience_2': {
+#             'company_name': 'Brandyme.fr', 
+#             'job_role': 'Freelance Wordpress and Shopify Developer', 
+#             'start_date': '2020', 
+#             'end_date': 'Present', 
+#             'location': 'Paris, France', 
+#             'job_description': [
+#                 'Coordinate with clients, designers, and other developers to deliver projects on time and within budget.', 
+#                 'Manage and structure website content effectively using the WordPress, Shopify CMS.', 
+#                 'Optimize website performance, including improving loading speeds and SEO.', 
+#                 'Perform regular updates, backups, and security checks.', 
+#                 'Diagnose and fix website issues, including bugs, errors, and downtime.', 
+#                 'Provide technical support and guidance to clients or users.', "Utilize Liquid, Shopify's templating language, to create and manipulate themes and functionalities within the Shopify platform.", 
+#                 'Integrate third-party apps to extend Shopify’s functionality and develop custom apps to meet specific business needs.', 
+#                 'Work with clients to understand their business needs and implement effective e-commerce strategies to enhance sales and customer engagement.', 
+#                 'Design intuitive and visually appealing user interfaces and user experiences that enhance customer satisfaction and drive conversions.', 
+#                 'Configured and managed payment gateways, optimizing the checkout process and reducing cart abandonment by 15%.', 
+#                 'Designed and developed email templates and managed automated email campaigns, contributing to a 20% increase in repeat purchases.'
+#             ]
+#         }, 
+#         'experience_3': None
+#     }, 
+#     'education': [
+#         {
+#             'institution': 'ESM University', 
+#             'degree': 'Bachelor of Science in Computer Science', 
+#             'end_date': 'July 2024', 
+#             'location': 'Benin Republic', 
+#             'details': None
+#         }
+#     ], 
+#     'skills': [
+#         'JavaScript', 
+#         'HTML/CSS', 
+#         'WooCommerce', 
+#         'Email Marketing', 
+#         'Graphics Design', 
+#         'Python', 
+#         'SQL', 
+#         'Shopify', 
+#         'WordPress'
+#     ], 
+#     'certifications': [None], 
+#     'references': [
+#         {
+#             'referee_name': None, 
+#             'relationship': None, 
+#             'contact_information': None
+#         }
+#     ]
+# }
 
 # generate_resume_pdf(improved_resume_dict, filename="resume.pdf")
 
