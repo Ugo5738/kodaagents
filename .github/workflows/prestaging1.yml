@@ -48,7 +48,7 @@ jobs:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         ASSISTANT_ID: ${{ secrets.ASSISTANT_ID }}
         MODEL_NAME: ${{ secrets.MODEL_NAME}}
-
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
         PINECONE_API_ENV: ${{ secrets.PINECONE_API_ENV }}
         PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
