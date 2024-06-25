@@ -1,22 +1,20 @@
 import json
 import os
-import tempfile
 from uuid import uuid4
+from typing import Any, Dict
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 from langchain_community.document_loaders import OnlinePDFLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from koda.config.logging_config import configure_logger
-from resume.utils.util_funcs import improve_resume_with_analysis, customize_doc, get_doc_urls
+from koda.config.logging_config import configure_logger, configure_file_logger
+from resume.utils.util_funcs import improve_resume_with_analysis, customize_doc, get_doc_urls, load_document, generate_pdf, upload_pdf_to_s3
 
-from django.core.files.storage import default_storage
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 
-import docx
-
+# Main logger for console output
 logger = configure_logger(__name__)
+# File logger for connection logs
+file_logger = configure_file_logger(__name__)
 
 class ResumeConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -26,15 +24,15 @@ class ResumeConsumer(AsyncWebsocketConsumer):
         # Join resume group
         await self.channel_layer.group_add(self.resume_group_name, self.channel_name)
 
-        logger.info("=========================== CONNECTED ===========================")
+        file_logger.info(f"WebSocket connected for user {self.user_id}")
+        
         await self.accept()
-        self.session_data = {}
+        self.session_data: Dict[str, Any] = {}
 
     async def disconnect(self, close_code):
-        logger.info("=========================== DISCONNECTED ===========================")
-
         # Leave resume group
         await self.channel_layer.group_discard(self.resume_group_name, self.channel_name)
+        file_logger.info(f"WebSocket disconnected for user {self.user_id}")
 
     async def receive(self, text_data):
         logger.info("=========================== MESSAGE RECEIVED ===========================")
@@ -42,73 +40,83 @@ class ResumeConsumer(AsyncWebsocketConsumer):
         try:
             text_data_json = json.loads(text_data)
             message_type = text_data_json.get("type")
-            job_post_content = text_data_json.get("job_post_content")
 
-            if message_type == 'resume_uploaded':
-                self.session_data['resume_file_key'] = text_data_json['file_key']
-            elif message_type == 'jobDetails':
-                self.session_data['job_details'] = text_data_json['details']
+            handlers = {
+                'resume_uploaded': self.handle_resume_upload,
+                'jobDetails': self.handle_job_details,
+                'customize_document': self.handle_customize_document
+            }
 
-            if 'resume_file_key' in self.session_data and 'job_details' in self.session_data:
-                resume_file_key = self.session_data['resume_file_key']
-                job_details = self.session_data['job_details']
+            handler = handlers.get(message_type)
+            if handler:
+                await handler(text_data_json)
+            else:
+                await self.send_error("Invalid message type")
 
-                # Open the file using default_storage
-                with default_storage.open(resume_file_key, 'rb') as resume_file:
-                    temp_file_path = f"/tmp/{uuid4()}.pdf"
-                    with open(temp_file_path, 'wb') as temp_file:
-                        temp_file.write(resume_file.read())
-
-                # Determine file extension
-                file_extension = os.path.splitext(resume_file_key)[1]
-
-                # Load the document content based on file type
-                if file_extension == ".pdf":
-                    loader = OnlinePDFLoader(temp_file_path)
-                # elif file_extension == ".docx":
-                #     doc = docx.Document(temp_file_path)
-                #     doc_content = "\n".join([para.text for para in doc.paragraphs])
-                #     loader = TextLoader(doc_content)
-                else:
-                    with open(temp_file_path, 'r', encoding='utf-8') as temp_file:
-                        loader = TextLoader(temp_file.read())
-
-                data = loader.load()
-
-                # Split the text for analysis
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-                texts = text_splitter.split_documents(data)
-
-                doc_list = [t.page_content for t in texts]
-                doc_content = "   ".join(doc_list)
-
-                # Process the document content (e.g., improve and optimize)
-                rez_pdf_url, cl_pdf_url = await get_doc_urls(doc_content, job_details)
-                result = {"resume_url": rez_pdf_url, "cover_letter_url": cl_pdf_url}
-                print(result)
-                # Send message to resume group
-                await self.channel_layer.group_send(
-                    self.resume_group_name,
-                    {"type": "resume_message", "message": result},
-                )
-
-        except json.JSONDecodeError as e:
-            logger.info("=========================== JSON ERROR DETECTED ===========================")
-            logger.info(e)
-            await self.send(text_data=json.dumps({"error": "Invalid JSON"}))
-        except KeyError as e:
-            logger.info("=========================== KEY ERROR DETECTED ===========================")
-            logger.info(e)
-            await self.send(text_data=json.dumps({"error": "Missing message key"}))
+        except json.JSONDecodeError:
+            await self.send_error("Invalid JSON")
         except Exception as e:
-            logger.info("=========================== GENERAL ERROR DETECTED ===========================")
-            logger.info(f"Error: {e}")
-            logger.info(f"File Extension: {file_extension}")
-            logger.info(f"File Path: {temp_file_path}")
-            await self.send(text_data=json.dumps({"error": str(e)}))
+            logger.exception("Error processing message")
+            await self.send_error(str(e))
+
+    async def handle_resume_upload(self, data):
+        self.session_data['resume_file_key'] = data['file_key']
+        await self.send_success("Resume file key stored successfully")
+
+    async def handle_job_details(self, data):
+        self.session_data['job_details'] = data['details']
+        if 'resume_file_key' in self.session_data:
+            await self.process_resume_and_job_details()
+        else:
+            await self.send_error("Resume not uploaded yet")
+
+    async def handle_customize_document(self, data):
+        doc_type = data.get('doc_type')
+        doc_url = data.get('doc_url')
+        custom_instruction = data.get('custom_instruction')
+        
+        if not all([doc_type, doc_url, custom_instruction]):
+            await self.send_error("Missing required fields for document customization")
+            return
+        
+        await self.customize_document(doc_type, doc_url, custom_instruction)
+
+    async def process_resume_and_job_details(self):
+        resume_file_key = self.session_data['resume_file_key']
+        job_details = self.session_data['job_details']
+
+        try:
+            doc_content = await load_document(file_key=resume_file_key)
+            rez_pdf_url, cl_pdf_url = await get_doc_urls(doc_content, job_details)
+            result = {"resume_url": rez_pdf_url, "cover_letter_url": cl_pdf_url}
+            await self.send_message(result)
+        except Exception as e:
+            logger.exception("Error processing resume and job details")
+            await self.send_error(str(e))
+    
+    async def customize_document(self, doc_type, doc_url, custom_instruction):
+        try:
+            doc_content = await load_document(doc_url=doc_url)
+            customized_content = await customize_doc(doc_type, doc_content, custom_instruction)
+            pdf = await generate_pdf(doc_type, customized_content)
+            pdf_url = await upload_pdf_to_s3(pdf, doc_type)
+            result = {f"{doc_type}_url": pdf_url}
+            await self.send_message(result)
+        except Exception as e:
+            logger.exception("Error customizing document")
+            await self.send_error(str(e))
+    
+    async def send_message(self, message):
+        await self.channel_layer.group_send(
+            self.resume_group_name,
+            {"type": "resume_message", "message": message},
+        )
+
+    async def send_error(self, error_message):
+        await self.send(text_data=json.dumps({"error": error_message}))
+
+    async def send_success(self, success_message):
+        await self.send(text_data=json.dumps({"message": success_message}))
 
     async def resume_message(self, event):
-        message = event["message"]
-
-        # Send message to WebSocket
-        await self.send(text_data=json.dumps({"message": message}))
+        await self.send(text_data=json.dumps({"message": event["message"]}))

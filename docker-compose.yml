@@ -34,7 +34,6 @@ services:
       - ./certs:/etc/nginx/certs:ro
       - ./nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx/html:/usr/share/nginx/html
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     environment:
       - DEFAULT_HOST=api.resumeguru.pro
 

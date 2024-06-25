@@ -325,75 +325,121 @@ improved_resume_dict = {
 resume_optimization_instruction = """
 Instructions for Resume Optimization:
 
-1. Personalization:
-    - Customize the resume for the specific job role and company.
-    - Get the job title of the resume from the job description.
-    - Incorporate relevant keywords from the job description.
+1. Ensure ATS Compatibility and Format:
+    - Create an ATS-compliant resume using a clean, professional format with clear headings and consistent styling.
+    - Avoid tables, graphics, or complex formatting that may confuse ATS systems.
 
-2. Professional Summary:
-    - Craft a compelling summary that aligns with the desired job role and company culture.
+2. Job-Specific Customization:
+    - Analyze the job description thoroughly to identify key requirements, skills, and qualifications.
+    - Prioritize the exact job title provided in the job description and use it as the title of the resume.
+    - Incorporate relevant keywords and phrases from the job description naturally throughout the resume.
 
-3. Experience:
-    - Emphasize skills and experiences that match the job requirements.
-    - Include specific examples of how the candidate has added value in previous roles.
+3. Professional Summary:
+    - Craft a concise (3-4 sentences) and compelling summary that directly addresses the job requirements.
+    - Highlight the candidate's most relevant qualifications and achievements that align with the role.
 
-4. Skills:
-    - Highlight both hard and soft skills relevant to the job.
+4. Work Experience:
+    - Prioritize and emphasize experiences that directly relate to the job description.
+    - Modify job titles, if appropriate, to match industry-standard titles or those used in the job posting.
+    - Use strong action verbs and quantify achievements where possible (e.g., "Increased sales by 25% over 6 months").
+    - Remove or downplay experiences that aren't relevant to the target position.
 
-5. Relevance and Brevity:
-    - Ensure all content is relevant to the job role and company.
-    - Keep the resume concise and focused on the job application.
+5. Skills Section:
+    - Create a dedicated skills section if not already present.
+    - List both hard and soft skills that match the job requirements, prioritizing those mentioned in the job description.
+    - Prioritize skills mentioned in the job description.
+
+6. Education and Certifications:
+    - List relevant educational qualifications and certifications, especially those required or preferred in the job description.
+    - If the job requires specific certifications, ensure they are clearly visible.
+
+7. Language and Tone:
+    - Adjust the language and tone to match the company culture and industry norms as reflected in the job posting.
+    - Use industry-specific terminology and acronyms appropriately.
+
+8. Optimization and Relevance:
+    - Ensure every bullet point and section directly contributes to showcasing the candidate's fit for the role.
+    - Remove any information that doesn't support the application or could be seen as irrelevant.
+
+9. Length and Focus:
+    - Aim for a 1-2 page resume, depending on the candidate's experience level and industry standards.
+    - Prioritize recent and most relevant experiences.
+
+10. Proofread and Refine:
+    - Eliminate any spelling or grammatical errors.
+    - Ensure consistency in formatting, tense, and style throughout the document.
+
+11. Final Check:
+    - Review the optimized resume against the job description to ensure all key requirements are addressed.
+    - Verify that the resume presents a cohesive narrative that positions the candidate as an ideal fit for the role.
 """
 
 cover_letter_optimization_instruction = """
-Instructions for Cover Letter Optimization:
+Instructions for Concise Cover Letter Optimization
+1. Job Description Analysis
+    - Carefully analyze the job description.
+    - Identify 3-5 key skills or qualifications crucial for the role.
 
-1. Personalization:
-    - Address the cover letter to the hiring manager by name, if possible. If not use 'Dear Hiring Manager'.
-    - Tailor the cover letter to the specific job and company, demonstrating knowledge of the company’s values, mission, and recent achievements.
-    - Ensure there are no placeholders like [Company Name] or [Job Posting Website/Company Career Page] in the final output. Use the information in the given texts to do your writing.
+2. Personalization (1-2 sentences)
+    - Address the hiring manager by name if known; otherwise, use "Dear Hiring Manager".
+    - If provided, in one sentence, demonstrate knowledge of the company's values, mission, and recent achievements.
+    - Ensure all placeholders are replaced with accurate information from the provided texts.
 
-2. Introduction:
-    - Begin with a strong opening that captures the hiring manager’s attention.
-    - Mention the specific role the candidate is applying for and where they found the job posting.
+3. Opening Paragraph (1-2 sentences)
+    - Start with a compelling opening line.
+    - Briefly state why you're an excellent fit for the role.
+    - Mention 1-2 key qualifications that align with top job requirements.
 
-3. Body:
-    - Highlight key experiences and achievements that are most relevant to the job.
-    - Explain why the candidate is interested in the role and how their skills and experiences make them an ideal candidate.
+4. Body Paragraph (2-3 sentences)
+    - Focus on 1-2 most relevant experiences or achievements to the job description.
+    - Use specific examples and metrics to demonstrate skills mentioned in the job posting.
+    - Incorporate keywords and phrases from the job description naturally.
+    - Highlight one key differentiator (e.g., leadership, problem-solving, communication, unique experience).
 
-4. Company Fit:
-    - Demonstrate understanding of the company culture and how the candidate would be a good fit.
-    - Mention any mutual connections or references, if applicable.
+5. Company Fit (1-2 sentences)
+    - Briefly explain how your skills or values align with the company's mission, culture or a specific initiative.
 
-5. Conclusion:
-    - End with a strong closing statement expressing enthusiasm for the role.
-    - Politely request an interview and provide contact information.
+6. Closing Paragraph (1-2 sentences)
+    - Summarize your enthusiasm and fit for the role.
+    - Include a clear call-to-action for an interview.
+    - Provide your contact information.
+
+7. Formatting and Length
+    - Ensure the cover letter is concise, typically not exceeding one page.
+    - Use professional formatting with clear paragraphs and appropriate spacing.
+    - Use concise, impactful language throughout.
+
+8. Final Check
+    - Verify that the language and tone match the company culture as described in the job posting.
+    - Confirm that the cover letter presents a compelling case for why the candidate is the ideal choice for this specific role.
+    - Ensure not to information about education of the applicant
 """
 
 resume_improvement_instruction = """
 Instructions for Resume Improvement:
 
-1. Structure and Formatting:
-    - Ensure the resume is well-structured with clear sections: Contact Information, Summary, Experience, Education, Skills, Certifications, and any other relevant sections.
-    - Use a clean, professional format that is easy to read and ATS-friendly (Applicant Tracking System).
+1. Craft an ATS-compliant (Applicant Tracking System) resume using a clean, professional format that is easy to read.
 
-2. Professional Summary:
-    - Craft a compelling summary at the top of the resume that highlights the candidate’s most relevant skills, experiences, and achievements.
+2. Structure and Formatting:
+    - Ensure the resume is well-structured with clear sections: Contact Information, Summary, Experience, Education, Skills, Certifications, and any other relevant sections.
+
+3. Professional Summary:
+    - Craft a concise but compelling summary at the top of the resume that highlights the candidate’s most relevant skills, experiences, and achievements.
     - Ensure the summary aligns with the candidate's career goals.
 
-3. Experience:
+4. Experience:
     - Detail work experience with a focus on achievements and quantifiable results rather than just responsibilities.
     - Use action verbs and emphasize skills and experiences.
 
-4. Skills:
+5. Skills:
     - Highlight both hard and soft skills relevant to the candidate's career.
     - Ensure the skills section is comprehensive yet concise.
 
-5. Education and Certifications:
+6. Education and Certifications:
     - List educational background and relevant certifications.
     - Highlight any prestigious institutions or notable academic achievements.
 
-6. Grammar and Punctuation:
+7. Grammar and Punctuation:
     - Correct any grammatical, spelling, or punctuation errors.
     - Ensure consistency in tense and person.
 """

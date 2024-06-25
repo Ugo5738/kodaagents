@@ -60,71 +60,100 @@ jobs:
         python manage.py test
 
   build-and-deploy:
-    needs: build-and-test
     runs-on: ubuntu-latest
+    needs: build-and-test
     steps:
     - uses: actions/checkout@v2
+
+    - name: Install GPG
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gnupg
+
     - name: Log in to Docker Hub
       uses: docker/login-action@v1
       with:
         username: ${{ secrets.DOCKER_HUB_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:staging-${{ github.sha }},${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
-  deploy:
-    needs: build-and-push-image
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-    - uses: actions/checkout@v3
-    - name: Install GPG
-      run: sudo apt-get update && sudo apt-get install -y gnupg
+    - name: Build and Push Docker image for Prestaging
+      env:
+        DOCKER_BUILDKIT: 1
+      run: |  
+        docker build -t resumeoptimizer:prestaging .
+        docker tag resumeoptimizer:prestaging ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+
+    - name: Setup SSH Key and Add to Known Hosts
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+    
     - name: Decrypt .env.gpg File
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      run: echo $GPG_PASSPHRASE | gpg --quiet --batch --yes --decrypt --passphrase-fd 0 --output ./.env ./.env.gpg
-    - name: Deploy to server
+      run: |
+        echo $GPG_PASSPHRASE | gpg --quiet --batch --yes --decrypt --passphrase-fd 0 --output ./.env ./.env.gpg
+
+    - name: Transfer Repository to Remote Server (Including Decrypted .env)
+      run: rsync -avz -e "ssh -i ~/.ssh/id_rsa" ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/resumeoptimizer/
+      
+    - name: Execute Docker commands on remote server
       uses: appleboy/ssh-action@master
-      env:
-        DOCKER_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:staging-${{ github.sha }}
       with:
         host: ${{ secrets.SERVER_IP }}
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        envs: DOCKER_IMAGE
         script: |
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+          
           cd /home/ubuntu/resumeoptimizer/
-          rsync -avz --exclude '.git' --exclude '.github' /home/ubuntu/resumeoptimizer/ ./
-          docker pull $DOCKER_IMAGE
-          docker-compose down
-          sed -i "s|image: .*|image: $DOCKER_IMAGE|" docker-compose.yml
-          docker-compose up -d
-          # Health check
-          for i in {1..5}; do
-            if curl -f http://localhost:8000/health; then
-              echo "Application is healthy"
-              exit 0
-            fi
-            echo "Waiting for application to be ready..."
-            sleep 10
-          done
-          echo "Application failed to become healthy. Rolling back..."
-          docker-compose down
-          git reset --hard HEAD~1
-          docker-compose up -d
-          exit 1
+
+          # Create necessary directories
+          mkdir -p nginx/vhost.d
+          mkdir -p nginx/html
+          mkdir -p nginx/acme.sh
+          mkdir -p certs
+
+          # Pull the latest image
+          docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+
+          # Ensure scripts are executable (in case they are not already)
+          chmod +x install_docker.sh
+          chmod +x entrypoint.sh
+
+          # Check if Docker Compose is installed
+          if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+            echo "Installing Docker Compose..."
+            ./install_docker.sh
+            # No need to modify PATH or logout/login; Docker should be immediately usable
+          else
+            echo "Docker Compose already installed."
+          fi
+          
+          # # Run docker commands using Docker Compose plugin syntax
+          # run_docker_compose() {
+          #   if command -v docker-compose &> /dev/null
+          #   then
+          #     echo "Using docker-compose"
+          #     sudo docker-compose down || echo "Docker Compose down failed or not necessary"
+          #     sudo docker-compose up -d || echo "Docker Compose up failed"
+          #   elif docker compose version &> /dev/null
+          #   then
+          #     echo "Using docker compose"
+          #     sudo docker compose down || echo "Docker Compose down failed or not necessary"
+          #     sudo docker compose up -d || echo "Docker Compose up failed"
+          #   else
+          #     echo "Neither docker-compose nor docker compose are installed."
+          #     exit 1
+          #   fi
+          # }
+
+          # run_docker_compose
     
-  cleanup:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-    - name: Setup crontab for Docker cleanup
+    - name: Setup crontab for Docker cleanup on the server with logging
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.SERVER_IP }}

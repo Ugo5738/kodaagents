@@ -1,3 +1,4 @@
+import os
 import json
 import time
 from uuid import uuid4
@@ -13,9 +14,13 @@ from spellchecker import SpellChecker
 from textblob import TextBlob
 
 from koda.config.base_config import openai_client as client
+from koda.config.base_config import anthropic_client
 from koda.config.logging_config import configure_logger
 from resume.pdf_gen import generate_resume_pdf, generate_formatted_pdf
 from resume.samples import default_cover_letter, resume_improvement_instruction, cover_letter_improvement_instruction, cover_letter_optimization_instruction, resume_optimization_instruction
+from langchain_community.document_loaders import OnlinePDFLoader, TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from django.core.files.storage import default_storage
 
 logger = configure_logger(__name__)
 
@@ -162,7 +167,7 @@ job_post_keywords_example_structure = json.dumps(
 )
 
 
-async def get_chat_response(instruction, message, doc_type=None):
+async def get_chat_response(instruction, message, doc_type=None, anthropic=None):
     start_time = time.time()
 
     chat = ChatOpenAI(
@@ -171,6 +176,21 @@ async def get_chat_response(instruction, message, doc_type=None):
         # model_name="gpt-3.5-turbo-0125",
         openai_api_key=settings.OPENAI_API_KEY,
     )
+
+    # anthropic_message = anthropic_client.messages.create(
+    #     model="claude-3-opus-20240229",
+    #     system=system,
+    #     messages=[
+    #         {
+    #             "role": "user", 
+    #             "content": [
+    #                 "type": "text",
+    #                 'text": prompt
+    #             ]
+    #         }
+    #     ]
+    # )
+    # anthropic_message.content[0].text
 
     messages = [SystemMessage(content=instruction), HumanMessage(content=message)]
 
@@ -406,20 +426,17 @@ async def improve_doc(doc_type, doc_content, doc_feedback):
         f"----------------------- {doc_type_upper} OPTIMIZATION STARTED -----------------------"
     )
 
-    instruction_base = f"Objective: Improve the quality of {doc_type}s to ensure they are professional, well-structured, and highlight the candidate's strengths and experiences."    
+    instruction_base = f"Your objective is to improve the quality of {doc_type}s to ensure they are professional, well-structured, and highlight the candidate's strengths and experiences.\n\n"    
     
     if doc_type == "resume":
-        instruction_base = instruction_base + "\n\n" + resume_improvement_instruction
+        instruction_base = instruction_base + resume_improvement_instruction
     elif doc_type == "cover letter":
-        instruction_base = instruction_base + "\n\n" + cover_letter_improvement_instruction
+        instruction_base = instruction_base + cover_letter_improvement_instruction
 
     if doc_feedback:
-        instruction = f"{instruction_base} Use the feedback provided and ensure not to miss out on any part of the document"
+        instruction = f"{instruction_base} \n\nEnsure you use the feedback provided to improve the document"
         content_feedback_combined = f"ORIGINAL CONTENT:\n{doc_content}\n\n{doc_type_upper} FEEDBACK:\n{doc_feedback}"
     else:
-        instruction = (
-            f"{instruction_base} Ensure not to miss out on any part of the document."
-        )
         content_feedback_combined = f"ORIGINAL CONTENT:\n{doc_content}"
 
     if doc_type == "cover letter":
@@ -448,7 +465,7 @@ async def improve_doc(doc_type, doc_content, doc_feedback):
 async def customize_doc(doc_type, doc_content, custom_instruction):
     start_time = time.time()
 
-    logger.info("----------------------- OPTIMIZATION -----------------------")
+    logger.info("----------------------- CUSTOMIZATION STARTS -----------------------")
 
     instruction = f"""
     Make adjustments to the {doc_type} using the adjustment instruction provided. 
@@ -462,13 +479,15 @@ async def customize_doc(doc_type, doc_content, custom_instruction):
     {custom_instruction}
     """
 
+    if doc_type == "cover_letter":
+        doc_type = "cover letter"
     if doc_type == "cover letter":
         optimized_content = await get_chat_response(instruction, content, doc_type="CL")
     elif doc_type == "resume":
         optimized_content = await get_chat_response(instruction, content, doc_type="R")
 
     logger.info(
-        f"----------------------- FULL {doc_type.upper()} FEEDBACK -----------------------"
+        f"----------------------- CUSTOMIZATION DONE -----------------------"
     )
     logger.info(f"{optimized_content}")
 
@@ -515,7 +534,7 @@ async def keyword_analysis1(doc_text_1, doc_text_2):
 async def optimize_doc(doc_type, doc_text, job_description):
     logger.info("----------------------- OPTIMIZATION -----------------------")
     instruction = f"""
-        You are a seasoned professional recruiter with decades experience that helps individuals optimize their {doc_type}. \
+        You are a seasoned professional recruiter with decades experience that helps applicant optimize their {doc_type} to the job being applied for. \
         Your objective is to provide an optimized {doc_type}s to increase the likelihood of securing an interview at top brands across various industries by tailoring them to specific job descriptions.
     """
 
@@ -621,10 +640,8 @@ async def get_doc_urls(resume_content=None, job_post_content=None):
     cl_s3_key = f"media/cl/{cover_letter_key_suffix}/{id}.pdf"
 
     resume_pdf = generate_resume_pdf(resume_content, filename=f"{resume_key_suffix.capitalize()} Resume.pdf")
-    print("Testing here 2")
     cl_pdf = await generate_formatted_pdf(cover_letter_content, filename=f"{cover_letter_key_suffix.capitalize()} Cover Letter.pdf", doc_type="CL")
-    print("Testing here 3")
-
+    
     upload_directly_to_s3(resume_pdf, settings.AWS_STORAGE_BUCKET_NAME, resume_s3_key)
     upload_directly_to_s3(cl_pdf, settings.AWS_STORAGE_BUCKET_NAME, cl_s3_key)
 
@@ -635,3 +652,42 @@ async def get_doc_urls(resume_content=None, job_post_content=None):
     logger.info(f"ENTIRE PROCESS TOOk {duration} seconds")    
 
     return resume_url, cl_url
+
+async def load_document(file_key=None, doc_url=None):
+    if doc_url:
+        loader = OnlinePDFLoader(doc_url)
+        data = loader.load()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+        texts = text_splitter.split_documents(data)
+        return "   ".join(t.page_content for t in texts)
+
+    with default_storage.open(file_key, 'rb') as file:
+        temp_file_path = f"/tmp/{uuid4()}.pdf"
+        with open(temp_file_path, 'wb') as temp_file:
+            temp_file.write(file.read())
+
+    file_extension = os.path.splitext(file_key)[1]
+    
+    if file_extension == ".pdf":
+        loader = OnlinePDFLoader(temp_file_path)
+    else:
+        with open(temp_file_path, 'r', encoding='utf-8') as temp_file:
+            loader = TextLoader(temp_file.read())
+    
+    data = loader.load()
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    texts = text_splitter.split_documents(data)
+    return "   ".join(t.page_content for t in texts)
+
+async def generate_pdf(doc_type, content):
+    if doc_type == "resume":
+        return generate_resume_pdf(content, filename="Customized Optimized Resume.pdf")
+    elif doc_type == "cover_letter":
+        return await generate_formatted_pdf(content, filename="Customized Optimized Cover Letter.pdf", doc_type="CL")
+    else:
+        raise ValueError(f"Unsupported document type: {doc_type}")
+
+async def upload_pdf_to_s3(pdf, doc_type):
+    s3_key = f"media/{doc_type}/optimized/{uuid4()}.pdf"
+    upload_directly_to_s3(pdf, settings.AWS_STORAGE_BUCKET_NAME, s3_key)
+    return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{s3_key}"

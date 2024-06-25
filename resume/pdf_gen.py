@@ -696,13 +696,16 @@ async def generate_formatted_pdf(response_text, filename, doc_type=None):
         # Handle the case where response_text is a string
         paragraphs = response_text.split("\n\n")
         y = format_paragraphs(p, paragraphs, width, height, y, is_paragraph=True)
-
+    
     p.save()
+    
+    pdf_value = buffer.getvalue()
     buffer.seek(0)
-
+    
     total = time.time() - start_time
     logger.info(f"PDF CREATION TIME: {total}")
-    return ContentFile(buffer.getvalue(), name=filename)
+    return ContentFile(pdf_value, name=filename)
+
 
 # async def run_main():
 #     from asgiref.sync import sync_to_async

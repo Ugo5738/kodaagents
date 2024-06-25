@@ -1,69 +1,64 @@
-version: "3"
-
 services:
   web:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    image: aiagency1/alw:latest
-    command: daphne aiagencyngine.asgi:application -b 0.0.0.0 -p 8000
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: daphne koda.asgi:application -b 0.0.0.0 -p 8000
     volumes:
       - .:/code
-      - log_volume:/code/logs
+    ports:
+      - "8000:8000"
+    # expose:
+    #   - "8000"
     depends_on:
       - redis
-    container_name: alw_app
-
-  celery:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    image: aiagency1/alw:latest
-    command: celery -A aiagencyengine worker --loglevel=info
-    volumes:
-      - .:/code
-      - log_volume:/code/logs
-    depends_on:
-      - redis
-    container_name: alw_app_celery
+    container_name: chat_app
+    environment:
+      - VIRTUAL_HOST=api.resumeguru.pro
+      - LETSENCRYPT_HOST=api.resumeguru.pro
+      - LETSENCRYPT_EMAIL=resumegurupro@gmail.com
 
   redis:
     image: redis:latest
-    volumes:
-      - redis_volume:/data
-    container_name: alw_app_redis
-  
-  postgres:
-    image: postgres:latest
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    container_name: alw_app_postgres
+    container_name: chat_app_redis
 
-  nginx:
-    image: nginx:latest
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    container_name: nginx_reverse_proxy
     ports:
       - "80:80"
-      # Uncomment the next line if you are setting up SSL
-      # - "443:443"
+      - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      # Uncomment these if you are serving static/media files from the container
-      # - static_volume:/static
-      # - media_volume:/media
-    depends_on:
-      - web
-    container_name: alw_app_nginx
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx/html:/usr/share/nginx/html
+      # - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      - DEFAULT_HOST=api.resumeguru.pro
 
-volumes:
-  redis_volume:
-  log_volume:
-  postgres_data:
-  # Uncomment these if you are serving static/media files from the container
-  # static_volume:
-  # media_volume:
+  letsencrypt-nginx-proxy-companion:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: nginx_letsencrypt
+    depends_on:
+      - nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/nginx/certs:rw
+      - ./nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/acme.sh:/etc/acme.sh
+    environment:
+      - NGINX_PROXY_CONTAINER=nginx_reverse_proxy
+      - DEFAULT_EMAIL=resumegurupro@gmail.com
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A koda worker --loglevel=info
+    volumes:
+      - .:/code
+    depends_on:
+      - redis
+    container_name: chat_app_celery

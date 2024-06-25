@@ -1,4 +1,5 @@
 # autogenstudio
+anthropic
 boto3
 # beautifulsoup4
 # bleach[css]
