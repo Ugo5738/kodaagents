@@ -102,25 +102,25 @@ jobs:
         script: |
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           cd /home/ubuntu/resumeoptimizer/
-          rsync -avz --exclude '.git' --exclude '.github' /home/ubuntu/resumeoptimizer/ ./
-          docker pull $DOCKER_IMAGE
-          docker-compose down
-          sed -i "s|image: .*|image: $DOCKER_IMAGE|" docker-compose.yml
-          docker-compose up -d
-          # Health check
-          for i in {1..5}; do
-            if curl -f http://localhost:8000/health; then
-              echo "Application is healthy"
-              exit 0
-            fi
-            echo "Waiting for application to be ready..."
-            sleep 10
-          done
-          echo "Application failed to become healthy. Rolling back..."
-          docker-compose down
-          git reset --hard HEAD~1
-          docker-compose up -d
-          exit 1
+          git pull origin prestaging
+    #       docker pull $DOCKER_IMAGE
+    #       docker-compose down
+    #       sed -i "s|image: .*|image: $DOCKER_IMAGE|" docker-compose.yml
+    #       docker-compose up -d
+    #       # Health check
+    #       for i in {1..5}; do
+    #         if curl -f http://localhost:8000/health; then
+    #           echo "Application is healthy"
+    #           exit 0
+    #         fi
+    #         echo "Waiting for application to be ready..."
+    #         sleep 10
+    #       done
+    #       echo "Application failed to become healthy. Rolling back..."
+    #       docker-compose down
+    #       git reset --hard HEAD~1
+    #       docker-compose up -d
+    #       exit 1
     
   cleanup:
     needs: deploy
