@@ -61,36 +61,43 @@ jobs:
       run: |
         python manage.py test
 
-  # build-and-push-image:
-  #   needs: build-and-test
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - uses: actions/checkout@v2
-  #   - name: Log in to Docker Hub
-  #     uses: docker/login-action@v1
-  #     with:
-  #       username: ${{ secrets.DOCKER_HUB_USERNAME }}
-  #       password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-  #   - name: Build and push Docker image
-  #     uses: docker/build-push-action@v4
-  #     with:
-  #       context: .
-  #       push: true
-  #       tags: ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:staging-${{ github.sha }},${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+  build-and-push-image:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:staging-${{ github.sha }},${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
   deploy:
-    # needs: build-and-push-image
-    needs: build-and-test
+    needs: build-and-push-image
     runs-on: ubuntu-latest
     environment: staging
     steps:
     - uses: actions/checkout@v3
+    - name: Setup SSH Key and Add to Known Hosts
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
     - name: Install GPG
       run: sudo apt-get update && sudo apt-get install -y gnupg
     - name: Decrypt .env.gpg File
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       run: echo $GPG_PASSPHRASE | gpg --quiet --batch --yes --decrypt --passphrase-fd 0 --output ./.env ./.env.gpg
+    - name: Transfer Repository to Remote Server (Including Decrypted .env)
+      run: rsync -avz -e "ssh -i ~/.ssh/id_rsa" ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/resumeoptimizer/
     - name: Deploy to server
       uses: appleboy/ssh-action@master
       env:
@@ -103,25 +110,10 @@ jobs:
         script: |
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           cd /home/ubuntu/resumeoptimizer/
-          git pull origin prestaging
-    #       docker pull $DOCKER_IMAGE
-    #       docker-compose down
-    #       sed -i "s|image: .*|image: $DOCKER_IMAGE|" docker-compose.yml
-    #       docker-compose up -d
-    #       # Health check
-    #       for i in {1..5}; do
-    #         if curl -f http://localhost:8000/health; then
-    #           echo "Application is healthy"
-    #           exit 0
-    #         fi
-    #         echo "Waiting for application to be ready..."
-    #         sleep 10
-    #       done
-    #       echo "Application failed to become healthy. Rolling back..."
-    #       docker-compose down
-    #       git reset --hard HEAD~1
-    #       docker-compose up -d
-    #       exit 1
+          # docker pull $DOCKER_IMAGE
+          docker-compose down
+          docker-compose up -d
+          exit 1
     
   cleanup:
     needs: deploy

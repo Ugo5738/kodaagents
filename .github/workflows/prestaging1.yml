@@ -1,183 +1,184 @@
-# name: Resume Optimizer Backend CI/CD Pipeline (Prestaging)
+name: Resume Optimizer Backend CI/CD Pipeline (Prestaging)
 
-# on:
-#   push:
-#     branches: [ prestaging ]
-#   workflow_dispatch:
+on:
+  push:
+    branches: [ prestaging ]
+  workflow_dispatch:
 
-# jobs:
-#   build-and-test:
-#     runs-on: ubuntu-latest
-#     steps:
-#     - uses: actions/checkout@v2
-#     - name: Set up Python 3.11
-#       uses: actions/setup-python@v2
-#       with:
-#         python-version: '3.11'    
-#     - name: Upgrade pip and Install Dependencies
-#       run: |
-#         python -m pip install --upgrade pip
-#         pip install -r requirements.txt
-#     - name: Run Tests
-#       env:
-#         # ===========================================================
-#         # ------------------------- GENERAL ------------------------- 
-#         SECRET_KEY: ${{ secrets.SECRET_KEY }}
-#         DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.11'    
+    - name: Upgrade pip and Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Run Tests
+      env:
+        # ===========================================================
+        # ------------------------- GENERAL ------------------------- 
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
       
-#         # ------------------------- SUPERUSER ------------------------- 
-#         ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-#         ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-#         ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        # ------------------------- SUPERUSER ------------------------- 
+        ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+        ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       
-#         # ------------------------- DATABASE ------------------------- 
-#         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # ------------------------- DATABASE ------------------------- 
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
       
-#         # ------------------------- CORS ------------------------- 
-#         CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+        # ------------------------- CORS ------------------------- 
+        CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
       
-#         # ------------------------- CSRF ------------------------- 
-#         CSRF_TRUSTED_ORIGINS: ${{ secrets.CSRF_TRUSTED_ORIGINS }}
+        # ------------------------- CSRF ------------------------- 
+        CSRF_TRUSTED_ORIGINS: ${{ secrets.CSRF_TRUSTED_ORIGINS }}
         
-#         # ------------------------- CDN STORAGE ------------------------- 
-#         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#         AWS_STORAGE_BUCKET_NAME: ${{ secrets.AWS_STORAGE_BUCKET_NAME }}
+        # ------------------------- CDN STORAGE ------------------------- 
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_STORAGE_BUCKET_NAME: ${{ secrets.AWS_STORAGE_BUCKET_NAME }}
       
-#         # ------------------------- TEXT PROCESSING DETAILS -------------------------
-#         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-#         ASSISTANT_ID: ${{ secrets.ASSISTANT_ID }}
-#         MODEL_NAME: ${{ secrets.MODEL_NAME}}
+        # ------------------------- TEXT PROCESSING DETAILS -------------------------
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        ASSISTANT_ID: ${{ secrets.ASSISTANT_ID }}
+        MODEL_NAME: ${{ secrets.MODEL_NAME}}
 
-#         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         
-#         PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-#         PINECONE_API_ENV: ${{ secrets.PINECONE_API_ENV }}
-#         PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+        PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+        PINECONE_API_ENV: ${{ secrets.PINECONE_API_ENV }}
+        PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
         
-#         # -------------------------- REDIS CONFIG ----------------------------
-#         REDIS_URL: ${{ secrets.REDIS_URL }}
-#         # ===========================================================
-#       run: |
-#         python manage.py test
+        # -------------------------- REDIS CONFIG ----------------------------
+        REDIS_URL: ${{ secrets.REDIS_URL }}
+        # ===========================================================
+      run: |
+        python manage.py test
 
-#   build-and-deploy:
-#     runs-on: ubuntu-latest
-#     needs: build-and-test
-#     steps:
-#     - uses: actions/checkout@v2
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+    - uses: actions/checkout@v2
 
-#     - name: Install GPG
-#       run: |
-#         sudo apt-get update
-#         sudo apt-get install -y gnupg
+    - name: Install GPG
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gnupg
 
-#     - name: Log in to Docker Hub
-#       uses: docker/login-action@v1
-#       with:
-#         username: ${{ secrets.DOCKER_HUB_USERNAME }}
-#         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-#     - name: Build and Push Docker image for Prestaging
-#       env:
-#         DOCKER_BUILDKIT: 1
-#       run: |  
-#         docker build -t resumeoptimizer:prestaging .
-#         docker tag resumeoptimizer:prestaging ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
-#         docker push ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+    - name: Build and Push Docker image for Prestaging
+      env:
+        DOCKER_BUILDKIT: 1
+      run: |  
+        docker build -t resumeoptimizer:prestaging .
+        docker tag resumeoptimizer:prestaging ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
-#     - name: Setup SSH Key and Add to Known Hosts
-#       run: |
-#         mkdir -p ~/.ssh
-#         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-#         chmod 600 ~/.ssh/id_rsa
-#         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+    - name: Setup SSH Key and Add to Known Hosts
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
     
-#     - name: Decrypt .env.gpg File
-#       env:
-#         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-#       run: |
-#         echo $GPG_PASSPHRASE | gpg --quiet --batch --yes --decrypt --passphrase-fd 0 --output ./.env ./.env.gpg
+    - name: Decrypt .env.gpg File
+      env:
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: |
+        echo $GPG_PASSPHRASE | gpg --quiet --batch --yes --decrypt --passphrase-fd 0 --output ./.env ./.env.gpg
 
-#     - name: Transfer Repository to Remote Server (Including Decrypted .env)
-#       run: rsync -avz -e "ssh -i ~/.ssh/id_rsa" ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/resumeoptimizer/
+    - name: Transfer Repository to Remote Server (Including Decrypted .env)
+      run: rsync -avz -e "ssh -i ~/.ssh/id_rsa" ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/home/ubuntu/resumeoptimizer/
       
-#     - name: Execute Docker commands on remote server
-#       uses: appleboy/ssh-action@master
-#       with:
-#         host: ${{ secrets.SERVER_IP }}
-#         username: ${{ secrets.SERVER_USER }}
-#         key: ${{ secrets.SSH_PRIVATE_KEY }}
-#         script: |
-#           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+    - name: Execute Docker commands on remote server
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          ssh -vvv -i ${{ secrets.SSH_PRIVATE_KEY }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
           
-#           cd /home/ubuntu/resumeoptimizer/
+          cd /home/ubuntu/resumeoptimizer/
 
-#           # Create necessary directories
-#           mkdir -p nginx/vhost.d
-#           mkdir -p nginx/html
-#           mkdir -p nginx/acme.sh
-#           mkdir -p certs
+          # # Create necessary directories
+          # mkdir -p nginx/vhost.d
+          # mkdir -p nginx/html
+          # mkdir -p nginx/acme.sh
+          # mkdir -p certs
 
-#           # Pull the latest image
-#           docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
+          # Pull the latest image
+          docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/resumeoptimizer:latest
 
-#           # Ensure scripts are executable (in case they are not already)
-#           chmod +x install_docker.sh
-#           chmod +x entrypoint.sh
+          # Ensure scripts are executable (in case they are not already)
+          chmod +x install_docker.sh
+          chmod +x entrypoint.sh
 
-#           # Check if Docker Compose is installed
-#           if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-#             echo "Installing Docker Compose..."
-#             ./install_docker.sh
-#             # No need to modify PATH or logout/login; Docker should be immediately usable
-#           else
-#             echo "Docker Compose already installed."
-#           fi
+          # # Check if Docker Compose is installed
+          # if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+          #   echo "Installing Docker Compose..."
+          #   ./install_docker.sh
+          #   # No need to modify PATH or logout/login; Docker should be immediately usable
+          # else
+          #   echo "Docker Compose already installed."
+          # fi
           
-#           # # Run docker commands using Docker Compose plugin syntax
-#           # run_docker_compose() {
-#           #   if command -v docker-compose &> /dev/null
-#           #   then
-#           #     echo "Using docker-compose"
-#           #     sudo docker-compose down || echo "Docker Compose down failed or not necessary"
-#           #     sudo docker-compose up -d || echo "Docker Compose up failed"
-#           #   elif docker compose version &> /dev/null
-#           #   then
-#           #     echo "Using docker compose"
-#           #     sudo docker compose down || echo "Docker Compose down failed or not necessary"
-#           #     sudo docker compose up -d || echo "Docker Compose up failed"
-#           #   else
-#           #     echo "Neither docker-compose nor docker compose are installed."
-#           #     exit 1
-#           #   fi
-#           # }
+          # # Run docker commands using Docker Compose plugin syntax
+          # run_docker_compose() {
+          #   if command -v docker-compose &> /dev/null
+          #   then
+          #     echo "Using docker-compose"
+          #     sudo docker-compose down || echo "Docker Compose down failed or not necessary"
+          #     sudo docker-compose up -d || echo "Docker Compose up failed"
+          #   elif docker compose version &> /dev/null
+          #   then
+          #     echo "Using docker compose"
+          #     sudo docker compose down || echo "Docker Compose down failed or not necessary"
+          #     sudo docker compose up -d || echo "Docker Compose up failed"
+          #   else
+          #     echo "Neither docker-compose nor docker compose are installed."
+          #     exit 1
+          #   fi
+          # }
 
-#           # run_docker_compose
+          # run_docker_compose
     
-#     - name: Setup crontab for Docker cleanup on the server with logging
-#       uses: appleboy/ssh-action@master
-#       with:
-#         host: ${{ secrets.SERVER_IP }}
-#         username: ${{ secrets.SERVER_USER }}
-#         key: ${{ secrets.SSH_PRIVATE_KEY }}
-#         script: |
-#           # Define the cron job command with logging
-#           CRON_JOB="0 0 * * * /usr/bin/docker system prune -af > /var/log/docker_cleanup.log 2>&1"
+    - name: Setup crontab for Docker cleanup on the server with logging
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          # Define the cron job command with logging
+          CRON_JOB="0 0 * * * /usr/bin/docker system prune -af > /var/log/docker_cleanup.log 2>&1"
           
-#           # Create a log file and set permissions (if not already exist)
-#           TOUCH_LOG_CMD="sudo touch /var/log/docker_cleanup.log && sudo chmod 644 /var/log/docker_cleanup.log"
-#           (crontab -l | grep -q "/var/log/docker_cleanup.log") || (eval "$TOUCH_LOG_CMD")
+          # Create a log file and set permissions (if not already exist)
+          TOUCH_LOG_CMD="sudo touch /var/log/docker_cleanup.log && sudo chmod 644 /var/log/docker_cleanup.log"
+          (crontab -l | grep -q "/var/log/docker_cleanup.log") || (eval "$TOUCH_LOG_CMD")
 
-#           # Check if the cleanup cron job already exists
-#           (crontab -l | grep -q "docker system prune") || (crontab -l 2>/dev/null; echo "$CRON_JOB") | sudo crontab -
+          # Check if the cleanup cron job already exists
+          (crontab -l | grep -q "docker system prune") || (crontab -l 2>/dev/null; echo "$CRON_JOB") | sudo crontab -
 
-#           # Ensure the cron service is running
-#           sudo service cron restart
+          # Ensure the cron service is running
+          sudo service cron restart
 
-#           # This cron job is scheduled to run at midnight every day, performing a Docker system prune
-#           # to remove unused Docker objects and logs the output to /var/log/docker_cleanup.log.
+          # This cron job is scheduled to run at midnight every day, performing a Docker system prune
+          # to remove unused Docker objects and logs the output to /var/log/docker_cleanup.log.
 
-# # username = resumeguru
-# # repo name = resumeoptimizer
-# # .env encrypt with resume
+# username = resumeguru
+# repo name = resumeoptimizer
+# .env encrypt with resume
