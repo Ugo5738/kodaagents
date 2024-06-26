@@ -109,10 +109,25 @@ jobs:
         envs: DOCKER_IMAGE
         script: |
           echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+          
           cd /home/ubuntu/resumeoptimizer/
-          # docker pull $DOCKER_IMAGE
-          docker-compose down
-          docker-compose up -d
+          docker pull $DOCKER_IMAGE
+
+          # Ensure scripts are executable (in case they are not already)
+          chmod +x install_docker.sh
+          chmod +x entrypoint.sh
+
+          # Check if Docker Compose is installed
+          if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+            echo "Installing Docker Compose..."
+            ./install_docker.sh
+            # No need to modify PATH or logout/login; Docker should be immediately usable
+          else
+            echo "Docker Compose already installed."
+          fi
+
+          docker compose down
+          docker compose up -d
           exit 1
     
   cleanup:
