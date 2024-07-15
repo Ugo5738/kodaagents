@@ -1,24 +1,44 @@
+from datetime import timedelta
+from typing import Any
+
 import jwt
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
 from django.conf import settings
-from django.views.generic import CreateView, ListView, View
+from django.contrib.auth import authenticate, login
+from django.core.mail import send_mail
+from django.http import JsonResponse
+from django.shortcuts import redirect
+from django.utils import timezone
+from django.utils.crypto import get_random_string
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django_filters.rest_framework import DjangoFilterBackend
+from google.auth.transport import requests
+from google.oauth2 import id_token
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
 from rest_framework import filters, generics, status, viewsets
-from rest_framework.decorators import api_view
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-from accounts.models import User
+from accounts.models import GoogleToken, User
 from accounts.pagination import CustomPageNumberPagination
-from accounts.serializers import (
-    ChangePasswordSerializer,
-    RegisterSerializer,
-    UserSerializer,
-)
+from accounts.serializers import ChangePasswordSerializer, RegisterSerializer, UserSerializer
+from helpers.email_utils import send_verification_email
+from rest_framework.permissions import AllowAny
 
-# LoginSerializer,
+
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class GetCSRFToken(APIView):
+    def get(self, request):
+        return JsonResponse({"success": "CSRF cookie set"})
 
 
 class RegisterAPIView(GenericAPIView):
@@ -31,48 +51,294 @@ class RegisterAPIView(GenericAPIView):
         "first_name": "John",
         "last_name": "Doe",
         "email": "johndoe@example.com",
-        "profile": {
-            "country": "NG"
-        }
+        "country": "NG"
     }
     """
-
+    permission_classes = [AllowAny]
+    authentication_classes = []
     serializer_class = RegisterSerializer
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         serializer = self.serializer_class(data=request.data)
+
         if serializer.is_valid():
             user = serializer.save()
             user.email_verified = False  # Set email_verified to False initially
+            user.email_verification_token = get_random_string(64)
             user.save()
 
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Send verification email
+            verification_link = f"{settings.FRONTEND_BASE_URL}/verify-email/{user.email_verification_token}"
+            email_response = send_verification_email(user.email, verification_link)
+
+            if email_response.status_code == 200:
+                return Response({
+                    "message": "User registered successfully. Please check your email to verify your account.",
+                    "user_id": user.id
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    "message": "User registered successfully, but there was an issue sending the verification email. Please try again later.",
+                    "user_id": user.id
+                }, status=status.HTTP_201_CREATED)
+        else:
+            print("Data not valid")
+            errors = {}
+            for field, field_errors in serializer.errors.items():
+                errors[field] = field_errors[0]  # Take the first error message for each field
+
+            if 'email' in errors and 'unique' in errors['email'].lower():
+                errors['email'] = "A user with this email already exists."
+
+            if 'password' in errors:
+                if 'too short' in errors['password'].lower():
+                    errors['password'] = "Password is too short. It must be at least 8 characters long."
+                elif 'too common' in errors['password'].lower():
+                    errors['password'] = "This password is too common. Please choose a more unique password."
+                elif 'entirely numeric' in errors['password'].lower():
+                    errors['password'] = "Password cannot be entirely numeric."
+
+            return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserView(APIView):
-    def get(self, request):
-        token = request.COOKIES.get("jwt")
+class VerifyEmailView(APIView):
+    def get(self, request, token):
+        try:
+            user = User.objects.get(email_verification_token=token)
+            user.email_verified = True
+            # user.email_verification_token = ''
+            user.save()
+            return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"message": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not token:
-            raise AuthenticationFailed("Unauthenticated")
+
+class ResendVerificationEmailView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        except jwt.ExpiredSignatureError:
-            raise AuthenticationFailed("Authentication Expired")
+            user = User.objects.get(email=email)
+            if user.email_verified:
+                return Response({"message": "Email is already verified"}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(id=payload["id"]).first()
-        serializer = UserSerializer(user)
-        return Response(serializer.data)
+            user.email_verification_token = get_random_string(64)
+            user.save()
+
+            verification_link = f"{settings.FRONTEND_BASE_URL}/verify-email/{user.email_verification_token}"
+            email_response = send_verification_email(user.email, verification_link)
+
+            if email_response.status_code == 200:
+                return Response({"message": "Verification email resent successfully"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"message": "Failed to resend verification email"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except User.DoesNotExist:
+            return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class LogoutAPIView(APIView):
+class GoogleAuthView(APIView):
     def post(self, request):
-        response = Response()
-        response.delete_cookie("jwt")
-        response.data = {"message": "success"}
-        return response
+        credential = request.data.get('credential')
+        try:
+            # Specify the CLIENT_ID of the app that accesses the backend:
+            idinfo = id_token.verify_oauth2_token(credential, requests.Request(), settings.GOOGLE_CLIENT_ID)
+
+            # ID token is valid. Get the user's Google Account ID from the decoded token.
+            userid = idinfo['sub']
+            email = idinfo['email']
+            name = idinfo.get('name', '')
+
+            # Check if this Google account already exists
+            user = User.objects.filter(email=email).first()
+
+            if user is None:
+                # Create a new user
+                user = User.objects.create_user(
+                    email=email,
+                    username=name.split()[0] if name else '',  # You might want to generate a unique username
+                    first_name=name.split()[0] if name else '',
+                    last_name=' '.join(name.split()[1:]) if name else '',
+                    email_verified=True
+                )
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+
+            return Response({
+                  'access': str(refresh.access_token),
+                  'refresh': str(refresh),
+                  'user': {
+                      'email': user.email,
+                      'name': user.get_full_name(),
+                  }
+              })
+
+        except ValueError:
+            # Invalid token
+            return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserPaymentStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'is_paid': user.is_paid,
+            'usage_count': user.usage_count
+        })
+
+
+class UpdateUsageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.is_paid:
+            if user.usage_count < 1:
+                user.usage_count += 1
+                user.save()
+            else:
+                return Response({'error': 'Usage limit reached'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'success': True, 'usage_count': user.usage_count})
+
+
+class LoginView(APIView):
+    def post(self, request: Request) -> Response:
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        if not email:
+            return Response({"errors": {"email": ["Email is required"]}}, status=status.HTTP_400_BAD_REQUEST)
+        if not password:
+            return Response({"errors": {"password": ["Password is required"]}}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = authenticate(email=email, password=password)
+
+        if user is not None:
+            if not user.email_verified:
+                return Response({"errors": {"email": ["Please verify your email before logging in"]}}, status=status.HTTP_401_UNAUTHORIZED)
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            })
+
+        user_exists = User.objects.filter(email=email).exists()
+        if user_exists:
+            return Response({"errors": {"password": ["Invalid password"]}}, status=status.HTTP_401_UNAUTHORIZED)
+        else:
+            return Response({"errors": {"email": ["No account found with this email"]}}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class LogoutView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                return Response({"error": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response(status=status.HTTP_205_RESET_CONTENT)
+        except TokenError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print("This is the error", e)
+            return Response({"error": "An unexpected error occurred"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GoogleLogin(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    callback_url = settings.FRONTEND_BASE_URL
+    client_class = OAuth2Client
+
+
+def google_auth(request):
+    # # Use this if you have a client_secret.json file
+    # flow = Flow.from_client_secrets_file(
+    #     'path/to/your/client_secret.json',
+    #     scopes=['https://www.googleapis.com/auth/gmail.send'],
+    #     redirect_uri='urn:ietf:wg:oauth:2.0:oob')
+
+    # If you don't have the file, use this instead:
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                # "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token"
+            }
+        },
+        scopes=['https://www.googleapis.com/auth/gmail.send', 'openid', 'profile', 'email']
+    )
+    flow.redirect_uri = settings.GOOGLE_REDIRECT_URI
+
+    authorization_url, _ = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    return redirect(authorization_url)
+
+
+def google_callback(request):
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=['https://www.googleapis.com/auth/gmail.send', 'openid', 'profile', 'email']
+    )
+    flow.redirect_uri = settings.GOOGLE_REDIRECT_URI
+
+    flow.fetch_token(code=request.GET.get('code'))
+
+    credentials = flow.credentials
+
+    # admin_user = User.objects.get(username='admin')
+    userinfo_client = build('oauth2', 'v2', credentials=credentials)
+    user_info = userinfo_client.userinfo().get().execute()
+
+    user, created = User.objects.get_or_create(email=user_info['email'])
+    if created:
+        user.first_name = user_info.get('given_name', '')
+        user.last_name = user_info.get('family_name', '')
+        user.email_verified = True  # User is verified through Google
+        user.save()
+
+    # Convert credentials.expiry to an aware datetime
+    if credentials.expiry.tzinfo is None:
+        aware_expiry = timezone.make_aware(credentials.expiry)
+    else:
+        aware_expiry = credentials.expiry
+
+    google_token, _ = GoogleToken.objects.update_or_create(
+        user=user,
+        defaults={
+            'access_token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'expires_at': max(aware_expiry, timezone.now()),
+            'email': user_info['email'],
+            'scopes': ','.join(credentials.scopes)
+        }
+    )
+
+    # Log the user in
+    login(request, user)
+
+    return redirect(settings.FRONTEND_BASE_URL)
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -96,6 +362,22 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering_fields = ["id", "username", "email"]
 
 
+class UserView(APIView):
+    def get(self, request: Request) -> Response:
+        token = request.COOKIES.get("jwt")
+
+        if not token:
+            raise AuthenticationFailed("Unauthenticated")
+
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationFailed("Authentication Expired")
+
+        user = User.objects.filter(id=payload["id"]).first()
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+
 class CurrentUserDetailView(APIView):
     """
     An endpoint to get the current logged in users' details.
@@ -104,8 +386,7 @@ class CurrentUserDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        serializer = UserSerializer(user)
+        serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
 
@@ -147,14 +428,13 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserListView(ListView):
-    template_name = (
-        "clarify/users.html"  # This should be changed to the appropriate page
-    )
-    queryset = User.objects.all()
 
-    # If you need to pass additional context data to the template
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # Add extra context variables if needed
-        return context
+
+
+
+
+
+
+
+
+

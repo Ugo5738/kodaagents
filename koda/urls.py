@@ -3,15 +3,13 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include, path
-from drf_spectacular.views import (
-    SpectacularAPIView,
-    SpectacularRedocView,
-    SpectacularSwaggerView,
-)
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 from rest_framework.routers import DefaultRouter
+
+from accounts import views as account_views
 
 router = DefaultRouter()
 
@@ -31,6 +29,12 @@ schema_view = get_schema_view(
 
 default_urlpatterns = [
     path("admin/", admin.site.urls),
+    path('dj-rest-auth/', include('dj_rest_auth.urls')),
+    path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),
+]
+
+permissions_urlpatterns = [
+    path('api/csrf-cookie/', account_views.GetCSRFToken.as_view()),
 ]
 
 custom_urlpatterns = [
@@ -39,7 +43,7 @@ custom_urlpatterns = [
     # path("api/agent/", include("autogen.urls")),
     path("api/resume/", include("resume.urls")),
     # path("api/interpreter/", include("ointerpreter.urls")),
-    # path("api/payment/", include("payment.urls")),
+    path("api/payments/", include("payment.urls")),
 ]
 
 spectacular_urlpatterns = [
@@ -72,6 +76,7 @@ urlpatterns = (
     + custom_urlpatterns
     + spectacular_urlpatterns
     + swagger_urlpatterns
+    + permissions_urlpatterns
 )
 
 if settings.DEBUG:

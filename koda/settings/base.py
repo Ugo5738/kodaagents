@@ -2,8 +2,10 @@ import os
 import secrets
 from datetime import timedelta
 from pathlib import Path
+from typing import List
 
 import dj_database_url
+from corsheaders.defaults import default_headers
 from decouple import config
 from dotenv import find_dotenv, load_dotenv
 
@@ -33,9 +35,19 @@ THIRD_PARTY_APPS = [
     "django_rest_passwordreset",
     "drf_yasg",
     "drf_spectacular",
-    "rest_framework",
-    "rest_framework_simplejwt",
     "storages",
+    'django.contrib.sites',
+    "rest_framework",
+    'rest_framework.authtoken',
+    "rest_framework_simplejwt",
+    'rest_framework_simplejwt.token_blacklist',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    # 'allauth.socialaccount.providers.facebook',
+    "dj_rest_auth",
+    'dj_rest_auth.registration',
 ]
 
 LOCAL_APPS = [
@@ -53,7 +65,7 @@ LOCAL_APPS = [
     # CREWAI AGENTS
     "resume",
     # payment apps
-    # "payment",
+    "payment",
 ]
 
 OTHER_APPS = [
@@ -70,8 +82,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    'allauth.account.middleware.AccountMiddleware',
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'accounts.middleware.PaymentMiddleware',
 ]
 
 ROOT_URLCONF = "koda.urls"
@@ -140,31 +154,72 @@ LOGIN_REDIRECT_URL = "index"  # "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
 
-def get_origin_list(env_variable, default=""):
-    origins = config(env_variable, default)
+def get_origin_list(env_variable: str, default: str = "") -> List[str]:
+    origins: str = config(env_variable, default)
     return [origin.strip() for origin in origins.split(",") if origin.strip()]
 
 
 # ==> CORS
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = get_origin_list("CORS_ORIGINS")
-CORS_ALLOWED_CREDENTIALS = True
-# CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-csrftoken",
+]
 
 # ==> CSRF
 CSRF_TRUSTED_ORIGINS = get_origin_list("CSRF_TRUSTED_ORIGINS")
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False  # False to allow JavaScript to access the cookie
+SESSION_COOKIE_HTTPONLY = True
 
 # ==> CONSTANTS
 CART_SESSION_ID = secrets.token_urlsafe(16)
 
+SITE_ID = 1
+
 # ==> AUTHENTICATION
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': config("GOOGLE_CLIENT_ID"),
+            'secret': config("GOOGLE_CLIENT_SECRET"),
+            'key': ''
+        },
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        }
+    }
+}
+
+# ==> AllAuth settings
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+
+# ==> DJ-REST-Auth settings
+REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'my-app-auth',
+    'JWT_AUTH_REFRESH_COOKIE': 'my-refresh-token',
+}
 
 # ==> REST FRAMEWORK
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
@@ -194,7 +249,7 @@ SIMPLE_JWT = {
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
     "JTI_CLAIM": "jti",
     "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
-    "SLIDING_TOKEN_LIFETIME": timedelta(minutes=5),
+    "SLIDING_TOKEN_LIFETIME": timedelta(minutes=15),
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
     "TOKEN_OBTAIN_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainPairSerializer",
     "TOKEN_REFRESH_SERIALIZER": "rest_framework_simplejwt.serializers.TokenRefreshSerializer",
@@ -232,4 +287,18 @@ ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY")
 PINECONE_API_KEY = config("PINECONE_API_KEY")
 PINECONE_API_ENV = config("PINECONE_API_ENV")
 PINECONE_INDEX_NAME = config("PINECONE_INDEX_NAME")
+
+# ==> GOOGLE OAUTH SETTINGS
+GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
+
+GOOGLE_REDIRECT_URI = config("GOOGLE_REDIRECT_URI")
+
+# ==> FRONTEND CONNECTION
+FRONTEND_BASE_URL = config("FRONTEND_BASE_URL")
+FRONTEND_CALLBACK_URL = config("FRONTEND_CALLBACK_URL")
+
+# ==> EMAIL
+MAILGUN_API_KEY = config("MAILGUN_API_KEY")
+MAILGUN_DOMAIN = config("MAILGUN_DOMAIN")
 # ================================ CUSTOM VARIABLES =======================================

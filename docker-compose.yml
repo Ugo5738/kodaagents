@@ -4,11 +4,11 @@ services:
       context: .
       dockerfile: Dockerfile
     # image: essentialrecruit/judy-staging:latest
-    command: daphne koda.asgi:application -b 0.0.0.0 -p 8000
+    command: sh -c "python manage.py makemigrations && python manage.py migrate && daphne koda.asgi:application -b 0.0.0.0 -p 8000"
     volumes:
       - .:/code
     ports:
-      - "8000:8000"
+      - '8000:8000'
     # expose:
     #   - "8000"
     depends_on:
@@ -27,8 +27,8 @@ services:
     image: jwilder/nginx-proxy
     container_name: nginx_reverse_proxy
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - ./certs:/etc/nginx/certs:ro
@@ -57,7 +57,7 @@ services:
       context: .
       dockerfile: Dockerfile
     # image: essentialrecruit/judy-staging:latest
-    command: celery -A koda worker --loglevel=info
+    command: sh -c "until nc -z chat_app 8000; do echo waiting for web; sleep 2; done; celery -A koda worker --loglevel=info"
     volumes:
       - .:/code
     depends_on:

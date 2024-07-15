@@ -2,7 +2,7 @@
 
 from .base import *
 
-DEBUG = False
+DEBUG = True  # False
 ALLOWED_HOSTS = ["*"]
 
 
@@ -42,6 +42,12 @@ STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
 # ================================ PAYSTACK =======================================
 # PAYSTACK_PUBLIC_KEY=config("PAYSTACK_LIVE_PUBLIC_KEY")
 # PAYSTACK_SECRET_KEY=config("PAYSTACK_LIVE_SECRET_KEY")
+
+PAYSTACK_PUBLIC_KEY=config("PAYSTACK_TEST_PUBLIC_KEY")
+PAYSTACK_SECRET_KEY=config("PAYSTACK_TEST_SECRET_KEY")
+
+PAYSTACK_WEBHOOK_DOMAIN = config('PAYSTACK_WEBHOOK_DOMAIN', default='https://api.resumeguru.pro')
+PAYSTACK_WEBHOOK_URL = f"{PAYSTACK_WEBHOOK_DOMAIN}/api/payments/webhook/"
 # ================================ PAYSTACK =======================================
 
 
@@ -54,7 +60,7 @@ STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
 # # EMAIL_USE_SSL = True
 # EMAIL_HOST_USER = config("EMAIL")
 # EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
-# DEFAULT_FROM_EMAIL = config("EMAIL")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL")
 # ================================ EMAIL =======================================
 
 

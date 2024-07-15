@@ -1,3 +1,4 @@
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from accounts import models
@@ -11,18 +12,22 @@ class OrganizationProfileSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-    organization_profile = OrganizationProfileSerializer(write_only=True)
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    country = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = models.User
-        # fields = '__all__'
-        exclude = ["groups", "user_permissions"]
+        fields = ['email', 'password', 'country', 'first_name', 'last_name']
+        extra_kwargs = {
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+        }
 
     def create(self, validated_data):
-        profile_data = validated_data.pop("organization_profile", {})
+        country = validated_data.pop('country', None)
         user = models.User.objects.create_user(**validated_data)
-        models.OrganizationProfile.objects.create(user=user, **profile_data)
+        if country:
+            models.OrganizationProfile.objects.create(user=user, country=country)
         return user
 
 
@@ -33,7 +38,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.User
         # fields = '__all__'
-        exclude = ["password", "phone_verified", "groups", "user_permissions"]
+        exclude = ["password", "groups", "user_permissions"]
 
 
 class ChangePasswordSerializer(serializers.Serializer):

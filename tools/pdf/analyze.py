@@ -5,15 +5,15 @@ from django.db import connections
 from bankanalysis.configs.logging_config import configure_logger
 from verification.pdf.df_analyzer import TransactionSummary
 from verification.pdf.pdf_manager import PDFDataManager
+from typing import Optional, Dict, Any, Tuple
 
 logger = configure_logger(__name__)
 
 
-def get_document_file_by_id(document_id):
+
+def get_document_file_by_id(document_id: str) -> Optional[Dict[str, Any]]:
     try:
         with connections["giddaa_db"].cursor() as cursor:
-            # cursor.execute('SELECT "Document" FROM "public"."Documents" WHERE "Id" = %s', [document_id])
-            # cursor.execute('SELECT * FROM "public"."Documents" WHERE "Id" = %s', [document_id])
             cursor.execute(
                 'SELECT "Id", "Name", "Description", "Extension", "Document", "CloudinaryLink", "ExtraProperties" FROM "public"."Documents" WHERE "Id" = %s',
                 [document_id],
@@ -22,7 +22,6 @@ def get_document_file_by_id(document_id):
             row = cursor.fetchone()
             print("This is the row: ", row)
             if row:
-                # Assuming columns are id, name, description, extension, document, extraProperties
                 document_data = {
                     "id": row[0],
                     "name": row[1],
@@ -32,7 +31,7 @@ def get_document_file_by_id(document_id):
                     "cloudinary_link": row[5],
                     "extraProperties": row[6],
                 }
-                logger.info(f"-------------- DOCUMENT DATA: --------------")
+                logger.info("-------------- DOCUMENT DATA: --------------")
                 logger.info(f"{document_data}")
                 return document_data
             else:
@@ -42,9 +41,13 @@ def get_document_file_by_id(document_id):
         return None
 
 
-def get_pdf_category(document_id):
-    document_data = get_document_file_by_id(document_id)
-    public_url = document_data["cloudinary_link"]
+def get_pdf_category(document_id: str) -> Tuple[Optional[str], PDFDataManager]:
+    document_data: Optional[Dict[str, Any]] = get_document_file_by_id(document_id)
+
+    if document_data is None:
+        return None, PDFDataManager(pdf_url="")  # Or handle this case as appropriate
+
+    public_url: str = document_data.get("cloudinary_link", "")
 
     # Initialize PDFDataManager with the given PDF path
     pdf_data_manager = PDFDataManager(pdf_url=public_url)

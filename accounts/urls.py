@@ -4,11 +4,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include, path
 from rest_framework import routers
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenVerifyView,
-)
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 from accounts import forms, views
 
@@ -17,8 +13,8 @@ router = routers.DefaultRouter()
 router.register(r"users", views.UserViewSet, basename="user")
 
 admin_urls = [
-    # path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
-    path("admin/users/", views.UserListView.as_view(), name="user_list"),
+    path('', include(router.urls)),
+    path('user/', views.CurrentUserDetailView.as_view(), name='current_user'),
 ]
 
 jwt_urls = [
@@ -34,6 +30,8 @@ jwt_urls = [
 
 account_urls = [
     path("signup/", views.RegisterAPIView.as_view(), name="signup"),
+    path('verify-email/<str:token>/', views.VerifyEmailView.as_view(), name='verify_email'),
+    path('resend-verification/', views.ResendVerificationEmailView.as_view(), name='resend_verification'),
     path(
         "login/",
         auth_views.LoginView.as_view(
@@ -41,7 +39,23 @@ account_urls = [
         ),
         name="login",
     ),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    # path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path('logout/', views.LogoutView.as_view(), name='auth_logout'),
+]
+
+social_urls = [
+    path('dj-rest-auth/google/', views.GoogleLogin.as_view(), name='google_auth'),
+    path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
+]
+
+google_auth_urls = [
+    # path('google_auth-2/', views.google_auth, name='google_auth'),
+    # path('oauth2callback/', views.google_callback, name='gmail_callback'),
+]
+
+payment_urls = [
+    path('payment-status/', views.UserPaymentStatusView.as_view(), name='user_payment_status'),
+    path('update-usage/', views.UpdateUsageView.as_view(), name='update_usage'),
 ]
 
 password_urls = [
@@ -81,7 +95,7 @@ password_urls = [
     ),
 ]
 
-urlpatterns = admin_urls + jwt_urls + account_urls + password_urls
+urlpatterns = admin_urls + jwt_urls + account_urls + password_urls + social_urls + google_auth_urls + payment_urls
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

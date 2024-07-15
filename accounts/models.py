@@ -54,11 +54,16 @@ class User(AbstractUser, TrackingModel):
         upload_to="profile_pics/", null=True, blank=True
     )
 
+    email_verification_token = models.CharField(max_length=128, null=True, blank=True)
     email_verified = models.BooleanField(
         _("email verified"),
         default=False,
         help_text="Designates whether this users email is verified.",
     )
+
+    # payment
+    is_paid = models.BooleanField(default=False)
+    usage_count = models.IntegerField(default=0)
 
     objects = UserManager()
 
@@ -93,3 +98,20 @@ class OrganizationProfile(TrackingModel):
     class Meta:
         verbose_name = _("Organization")
         verbose_name_plural = _("Organizations")
+
+
+class GoogleToken(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    access_token = models.TextField()
+    refresh_token = models.TextField()
+    expires_at = models.DateTimeField()
+    email = models.EmailField()
+    scopes = models.TextField()  # Store the scopes as a comma-separated string
+
+    @property
+    def expired(self):
+        from django.utils import timezone
+        return self.expires_at <= timezone.now()
+
+    def get_scopes(self):
+        return self.scopes.split(',')

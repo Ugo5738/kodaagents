@@ -8,13 +8,8 @@ from django.conf import settings
 
 from koda.config.logging_config import configure_logger
 from resume.job_post import optimize_job
-from resume.models import (
-    CoverLetter,
-    CoverLetterAnalysis,
-    JobPost,
-    OptimizedCoverLetterContent,
-)
-from resume.pdf_gen import generate_formatted_pdf
+from resume.models import CoverLetter, CoverLetterAnalysis, JobPost, OptimizedCoverLetterContent
+from resume.pdf_gen import generate_cv_pdf
 from resume.samples import default_cover_letter
 from resume.utils.util_funcs import (
     Polarity,
@@ -44,7 +39,7 @@ async def get_default_cover_letter_func(candidate_id):
             "cover letter", "resume", resume_content, default_cover_letter
         )
 
-        pdf = await generate_formatted_pdf(
+        pdf = await generate_cv_pdf(
             created_cl, filename="Base Cover Letter.pdf", doc_type="CL"
         )
 
@@ -107,7 +102,7 @@ async def improve_cover_letter_func(candidate_id):
             doc_feedback=cover_letter_feedback,
         )
 
-        pdf = await generate_formatted_pdf(
+        pdf = await generate_cv_pdf(
             improved_content, filename="Improved Cover Letter.pdf", doc_type="CL"
         )
 
@@ -162,7 +157,7 @@ async def customize_improved_cover_letter_func(candidate_id, custom_instruction)
             custom_instruction=custom_instruction,
         )
 
-        pdf = await generate_formatted_pdf(
+        pdf = await generate_cv_pdf(
             customized_content,
             filename="Customized Improved Cover Letter.pdf",
             doc_type="CL",
@@ -231,7 +226,7 @@ async def cl_optimize_func(applicant_id, job_post_id):
         job_description=optimized_content_for_job_post,
     )
 
-    pdf = await generate_formatted_pdf(
+    pdf = await generate_cv_pdf(
         optimized_content, filename="Optimized Cover Letter.pdf", doc_type="CL"
     )
 
@@ -287,7 +282,7 @@ async def customize_opt_cl(applicant_id, job_post_id, custom_instruction):
         custom_instruction=custom_instruction,
     )
 
-    pdf = await generate_formatted_pdf(
+    pdf = await generate_cv_pdf(
         customized_content,
         filename="Customized Optimized Cover Letter.pdf",
         doc_type="CL",

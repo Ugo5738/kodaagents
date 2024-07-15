@@ -4,12 +4,12 @@ import uuid
 import boto3
 from django.conf import settings
 from django.core.files.storage import default_storage
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views import View
 from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 
 from resume.cl_opt import (
@@ -398,7 +398,6 @@ class Boto3UploadView(View):
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-
 
 # @csrf_exempt
 # def upload_resume(request):
