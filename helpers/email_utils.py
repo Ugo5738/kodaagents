@@ -104,3 +104,103 @@ def send_verification_email(to_email, verification_link):
             "html": html_content
         }
     )
+
+
+def send_payment_confirmation_email(payment):
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #4A4A4A;">Payment Confirmation</h2>
+            <p>Your payment has been successfully processed:</p>
+            <ul>
+                <li><strong>Reference:</strong> {payment.reference}</li>
+                <li><strong>Amount:</strong> {payment.amount} {payment.currency}</li>
+                <li><strong>Date:</strong> {payment.created_at}</li>
+            </ul>
+            <p>Thank you for your payment!</p>
+        </div>
+    </body>
+    </html>
+    """
+    return requests.post(
+        f"https://api.mailgun.net/v3/{settings.MAILGUN_DOMAIN}/messages",
+        auth=("api", settings.MAILGUN_API_KEY),
+        data={
+            "from": "ResumeGuru Payments <payments@resumeguru.pro>",
+            "to": [payment.user.email],
+            "subject": f"Payment Confirmation - {payment.reference}",
+            "text": f"Your payment of {payment.amount} {payment.currency} has been processed successfully. Reference: {payment.reference}",
+            "html": html_content
+        }
+    )
+
+
+def send_payment_notification_email(payment):
+    html_content = f"""
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4A4A4A;">New Payment Received</h2>
+        <p>A new payment has been successfully processed:</p>
+        <ul>
+            <li><strong>Reference:</strong> {payment.reference}</li>
+            <li><strong>Amount:</strong> {payment.amount} {payment.currency}</li>
+            <li><strong>User:</strong> {payment.user.email}</li>
+            <li><strong>Status:</strong> {payment.status}</li>
+            <li><strong>Date:</strong> {payment.created_at}</li>
+        </ul>
+        <p>Please login to the admin panel for more details.</p>
+    </div>
+</body>
+</html>
+"""
+    return requests.post(
+        f"https://api.mailgun.net/v3/{settings.MAILGUN_DOMAIN}/messages",
+        auth=("api", settings.MAILGUN_API_KEY),
+        data={
+            "from": "ResumeGuru Payments <payments@resumeguru.pro>",
+            "to": ["resumegurupro@gmail.com"],
+            "subject": f"New Payment Received - {payment.reference}",
+            "text": f"New payment received. Reference: {payment.reference}, Amount: {payment.amount} {payment.currency}, User: {payment.user.email}, Status: {payment.status}, Date: {payment.created_at}",
+            "html": html_content
+        }
+    )
+
+
+def send_subscription_status_email(email, status):
+    subject_map = {
+        'created': 'Welcome to Your New Subscription!',
+        'cancelled': 'Your Subscription Has Been Cancelled',
+        'payment_failed': 'Subscription Payment Failed'
+    }
+
+    message_map = {
+        'created': 'Your subscription has been successfully created. Thank you for joining!',
+        'cancelled': 'Your subscription has been cancelled. We hope you\'ll consider rejoining in the future.',
+        'payment_failed': 'We were unable to process your subscription payment. Please update your payment method to continue your service.'
+    }
+
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #4A4A4A;">{subject_map[status]}</h2>
+            <p>{message_map[status]}</p>
+            <p>If you have any questions, please don't hesitate to contact our support team.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    return requests.post(
+        f"https://api.mailgun.net/v3/{settings.MAILGUN_DOMAIN}/messages",
+        auth=("api", settings.MAILGUN_API_KEY),
+        data={
+            "from": "ResumeGuru Support <support@resumeguru.pro>",
+            "to": [email],
+            "subject": subject_map[status],
+            "text": message_map[status],
+            "html": html_content
+        }
+    )

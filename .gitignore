@@ -178,3 +178,5 @@ keys/
 .DS_Store
 commands.md
 pyproject.toml
+nginx/
+certs/

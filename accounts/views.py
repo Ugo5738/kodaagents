@@ -22,7 +22,7 @@ from googleapiclient.discovery import build
 from rest_framework import filters, generics, status, viewsets
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -32,7 +32,6 @@ from accounts.models import GoogleToken, User
 from accounts.pagination import CustomPageNumberPagination
 from accounts.serializers import ChangePasswordSerializer, RegisterSerializer, UserSerializer
 from helpers.email_utils import send_verification_email
-from rest_framework.permissions import AllowAny
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
