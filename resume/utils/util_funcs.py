@@ -794,7 +794,7 @@ async def get_anth_chat_response(prompt, to_json=True):
 
     response = await anthropic_client.messages.create(
         model="claude-3-5-sonnet-20240620",
-        max_tokens=4096,
+        max_tokens=4096,  # try 8192
         temperature=0.2,
         messages=[
             {"role": "user", "content": prompt},

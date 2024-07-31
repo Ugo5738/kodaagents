@@ -55,6 +55,7 @@ python-dotenv
 python-Levenshtein
 reportlab
 scikit-learn
+stripe
 tabula-py
 textblob
 textstat

@@ -39,7 +39,7 @@ STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
 # ================================ STORAGES =======================================
 
 
-# ================================ PAYSTACK =======================================
+# ================================ PAYMENT =======================================
 PAYSTACK_PUBLIC_KEY=config("PAYSTACK_LIVE_PUBLIC_KEY")
 PAYSTACK_SECRET_KEY=config("PAYSTACK_LIVE_SECRET_KEY")
 
@@ -48,7 +48,12 @@ PAYSTACK_SECRET_KEY=config("PAYSTACK_LIVE_SECRET_KEY")
 
 PAYSTACK_WEBHOOK_DOMAIN = config('PAYSTACK_WEBHOOK_DOMAIN', default='https://api.resumeguru.pro')
 PAYSTACK_WEBHOOK_URL = f"{PAYSTACK_WEBHOOK_DOMAIN}/api/payments/webhook/"
-# ================================ PAYSTACK =======================================
+
+STRIPE_SECRET_KEY=config("STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY=config("STRIPE_PUBLISHABLE_KEY")
+STRIPE_WEBHOOK_SECRET=config("STRIPE_WEBHOOK_SECRET")
+STRIPE_PRICE_ID=config("STRIPE_PRICE_ID")
+# ================================ PAYMENT =======================================
 
 
 # ================================ EMAIL =======================================

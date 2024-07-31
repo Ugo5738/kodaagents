@@ -62,6 +62,7 @@ class User(AbstractUser, TrackingModel):
     )
 
     # payment
+    stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
     is_paid = models.BooleanField(default=False)
     usage_count = models.IntegerField(default=0)
 

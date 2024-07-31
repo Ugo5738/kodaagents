@@ -56,6 +56,11 @@ jobs:
           PAYSTACK_LIVE_SECRET_KEY: ${{ secrets.PAYSTACK_LIVE_SECRET_KEY }}
           PAYSTACK_WEBHOOK_DOMAIN: ${{ secrets.PAYSTACK_WEBHOOK_DOMAIN }}
 
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
+
           # ------------------------- TEXT PROCESSING DETAILS -------------------------
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ASSISTANT_ID: ${{ secrets.ASSISTANT_ID }}

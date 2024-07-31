@@ -2,8 +2,9 @@ import logging
 
 import requests
 from django.conf import settings
+from koda.config.logging_config import configure_logger
 
-logger = logging.getLogger(__name__)
+logger = configure_logger(__name__)
 
 
 class PaystackAPI:

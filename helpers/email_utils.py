@@ -69,25 +69,25 @@ def gmail_send_message(to, subject, body):
 def send_verification_email(to_email, verification_link):
     html_content = f"""
 <html>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f8;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <img src="https://your-logo-url.com" alt="ResumeGuru Logo" style="display: block; margin: 0 auto; max-width: 200px;">
-        <h2 style="color: #4A4A4A;">Welcome to ResumeGuru!</h2>
+        <h2 style="color: #4f46e5;">Welcome to ResumeGuru!</h2>
         <p>Hello,</p>
         <p>Thank you for registering with ResumeGuru. We're excited to have you on board! To get started, please verify your email address by clicking the button below:</p>
         <p style="text-align: center;">
-            <a href="{verification_link}" style="background-color: #4CAF50; color: white; padding: 14px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 4px; font-weight: bold;">Verify Your Email</a>
+            <a href="{verification_link}" style="background-color: #4f46e5; color: white; padding: 14px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 4px; font-weight: bold; transition: background-color 0.3s;">Verify Your Email</a>
         </p>
         <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
-        <p>{verification_link}</p>
+        <p style="word-break: break-all; color: #4f46e5;">{verification_link}</p>
         <p>If you didn't create an account with ResumeGuru, please ignore this email.</p>
         <p>Best regards,<br>The ResumeGuru Team</p>
     </div>
-    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
+    <div style="text-align: center; padding-top: 20px; font-size: 12px; color: #666;">
         <p>© 2024 ResumeGuru. All rights reserved.</p>
         <p>
-            <a href="#" style="color: #888; text-decoration: none;">Terms of Service</a> |
-            <a href="#" style="color: #888; text-decoration: none;">Privacy Policy</a>
+            <a href="#" style="color: #4f46e5; text-decoration: none;">Terms of Service</a> |
+            <a href="#" style="color: #4f46e5; text-decoration: none;">Privacy Policy</a>
         </p>
     </div>
 </body>
@@ -176,7 +176,7 @@ def send_subscription_status_email(email, status):
     }
 
     message_map = {
-        'created': 'Your subscription has been successfully created. Thank you for joining!',
+        'created': 'Welcome onboard ResumeGuru.pro. Build your best resumes and get your dream job',
         'cancelled': 'Your subscription has been cancelled. We hope you\'ll consider rejoining in the future.',
         'payment_failed': 'We were unable to process your subscription payment. Please update your payment method to continue your service.'
     }

@@ -6,5 +6,6 @@ urlpatterns = [
     path('initiate/', views.InitiatePaymentView.as_view(), name='initiate_payment'),
     path('verify/', views.VerifyPaymentView.as_view(), name='verify_payment'),
     path('details/<str:reference>/', views.PaymentDetailsView.as_view(), name='payment_details'),
+    path('stripe-webhook/', views.StripeWebhookView.as_view(), name='stripe_webhook'),
     path('webhook/', views.PaystackWebhookView.as_view(), name='paystack_webhook'),
 ]

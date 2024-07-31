@@ -17,46 +17,67 @@ class Payment(models.Model):
         ('success', 'Success'),
         ('failed', 'Failed'),
     ]
+    PROVIDER_CHOICES = [
+        ('paystack', 'Paystack'),
+        ('stripe', 'Stripe'),
+    ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='NGN')
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
     reference = models.CharField(max_length=200, unique=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    provider = models.CharField(max_length=10, choices=PROVIDER_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    subscription = models.ForeignKey("Subscription", on_delete=models.SET_NULL, null=True, blank=True)
+
+    # New fields for Stripe
+    stripe_payment_intent_id = models.CharField(max_length=200, blank=True, null=True)
+    stripe_charge_id = models.CharField(max_length=200, blank=True, null=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.amount} {self.currency}"
+        return f"{self.user.username} - {self.amount} {self.currency} ({self.provider})"
 
 
 class Subscription(models.Model):
+    STATUS_CHOICES = [
+        ('trialing', 'Trialing'),
+        ('active', 'Active'),
+        ('past_due', 'Past Due'),
+        ('canceled', 'Canceled'),
+        ('unpaid', 'Unpaid'),
+        ('incomplete', 'Incomplete'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    paystack_subscription_code = models.CharField(max_length=100, blank=True, null=True)
-    start_date = models.DateTimeField(default=timezone.now)
-    end_date = models.DateTimeField()
-    is_active = models.BooleanField(default=True)
-    last_payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True)
+    stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
+    paystack_subscription_code = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    current_period_start = models.DateTimeField(null=True)
+    current_period_end = models.DateTimeField(null=True)
+    cancel_at_period_end = models.BooleanField(default=False)
+    canceled_at = models.DateTimeField(null=True, blank=True)
+    provider = models.CharField(max_length=10, choices=Payment.PROVIDER_CHOICES)
 
-    def save(self, *args, **kwargs):
-        if not self.end_date:
-            self.end_date = self.start_date + relativedelta(months=1)
-        super().save(*args, **kwargs)
+    def is_active(self):
+        return self.status in ['trialing', 'active']
 
-    def renew(self, payment):
-        self.end_date = self.end_date + relativedelta(months=1)
-        self.last_payment = payment
-        self.save()
-
-    def is_valid(self):
-        return self.is_active and self.end_date > timezone.now()
+    def __str__(self):
+        return f"{self.user.email}'s Subscription ({self.provider})"
 
 
 class WebhookLog(models.Model):
+    PROVIDER_CHOICES = [
+        ('paystack', 'Paystack'),
+        ('stripe', 'Stripe'),
+    ]
+
     payload = models.JSONField()
     verified = models.BooleanField(default=False)
     processed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    provider = models.CharField(max_length=10, choices=PROVIDER_CHOICES)
 
     def __str__(self):
-        return f"Webhook {self.id} - Verified: {self.verified}, Processed: {self.processed}"
+        return f"Webhook {self.id} - Provider: {self.provider}, Verified: {self.verified}, Processed: {self.processed}"
