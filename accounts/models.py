@@ -65,6 +65,8 @@ class User(AbstractUser, TrackingModel):
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
     is_paid = models.BooleanField(default=False)
     usage_count = models.IntegerField(default=0)
+    has_free_access = models.BooleanField(default=False)  # Add this field
+    free_usage_limit = models.IntegerField(default=100)
 
     objects = UserManager()
 

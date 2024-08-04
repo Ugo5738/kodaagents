@@ -1,6 +1,3 @@
-from datetime import timedelta
-from typing import Any
-
 import jwt
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
@@ -20,7 +17,7 @@ from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from rest_framework import filters, generics, status, viewsets
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -32,6 +29,9 @@ from accounts.models import GoogleToken, User
 from accounts.pagination import CustomPageNumberPagination
 from accounts.serializers import ChangePasswordSerializer, RegisterSerializer, UserSerializer
 from helpers.email_utils import send_verification_email
+from koda.config.logging_config import configure_logger
+
+logger = configure_logger(__name__)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -140,6 +140,7 @@ class ResendVerificationEmailView(APIView):
 
 class GoogleAuthView(APIView):
     def post(self, request):
+        logger.info("Received Google Auth request")
         credential = request.data.get('credential')
         try:
             # Specify the CLIENT_ID of the app that accesses the backend:
@@ -155,6 +156,7 @@ class GoogleAuthView(APIView):
 
             if user is None:
                 # Create a new user
+                logger.info(f"Creating new user for email: {email}")
                 user = User.objects.create_user(
                     email=email,
                     username=name.split()[0] if name else '',  # You might want to generate a unique username
@@ -162,6 +164,9 @@ class GoogleAuthView(APIView):
                     last_name=' '.join(name.split()[1:]) if name else '',
                     email_verified=True
                 )
+                logger.info(f"New user created: {user.id}")
+            else:
+                logger.info(f"Existing user found: {user.id}")
 
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
@@ -174,10 +179,15 @@ class GoogleAuthView(APIView):
                       'name': user.get_full_name(),
                   }
               })
-
-        except ValueError:
-            # Invalid token
-            return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
+        except PermissionDenied as e:
+            logger.error(f"Permission Denied: {str(e)}")
+            return Response({'error': 'Permission denied', 'details': str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            return Response({'error': 'An unexpected error occurred', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # except ValueError:
+        #     # Invalid token
+        #     return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserPaymentStatusView(APIView):
@@ -187,7 +197,10 @@ class UserPaymentStatusView(APIView):
         user = request.user
         return Response({
             'is_paid': user.is_paid,
-            'usage_count': user.usage_count
+            'usage_count': user.usage_count,
+            'has_free_access': user.has_free_access,
+            'free_usage_limit': user.free_usage_limit,
+            'remaining_uses': 'unlimited' if user.is_paid else max(0, user.free_usage_limit - user.usage_count)
         })
 
 
@@ -196,12 +209,12 @@ class UpdateUsageView(APIView):
 
     def post(self, request):
         user = request.user
-        if not user.is_paid:
-            if user.usage_count < 1:
-                user.usage_count += 1
-                user.save()
-            else:
-                return Response({'error': 'Usage limit reached'}, status=status.HTTP_403_FORBIDDEN)
+        user.usage_count += 1
+        user.save()
+
+        if not user.is_paid and user.usage_count > user.free_usage_limit:
+            return Response({'error': 'Usage limit reached'}, status=status.HTTP_403_FORBIDDEN)
+
         return Response({'success': True, 'usage_count': user.usage_count})
 
 
@@ -425,15 +438,3 @@ class ChangePasswordView(generics.UpdateAPIView):
             return Response(response)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
-
-
-
-
-
-
-
-

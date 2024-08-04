@@ -1,12 +1,10 @@
-from decimal import Decimal
 import hashlib
 import hmac
-import json
 
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import permission_classes
@@ -101,38 +99,7 @@ class InitiatePaymentView(APIView):
         stripe_api = StripeAPI()
 
         if payment_type == 'subscription':
-            # Create a Stripe Customer if not exists
-            if not request.user.stripe_customer_id:
-                customer = stripe.Customer.create(email=request.user.email)
-                request.user.stripe_customer_id = customer.id
-                request.user.save()
-
-            # Create a Stripe Subscription
-            try:
-                subscription = stripe.Subscription.create(
-                    customer=request.user.stripe_customer_id,
-                    items=[{'price': settings.STRIPE_PRICE_ID}],  # You need to set this in your settings
-                    payment_behavior='default_incomplete',
-                    expand=['latest_invoice.payment_intent'],
-                )
-
-                intent = subscription["latest_invoice"]["payment_intent"]
-                if intent:
-                    Payment.objects.create(
-                        user=request.user,
-                        amount=Decimal(intent["amount"]) / Decimal('100.0'),
-                        currency=intent["currency"].upper(),
-                        reference=intent.id,
-                        stripe_payment_intent_id=intent.id,
-                        status="pending",
-                        provider='stripe'
-                    )
-                return JsonResponse({
-                    'client_secret': subscription.latest_invoice.payment_intent.client_secret,
-                    'subscription_id': subscription.id,
-                })
-            except stripe.error.StripeError as e:
-                return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return self.initiate_stripe_subscription(request)
         else:
             intent = stripe_api.create_payment_intent(amount, request.user.email, currency)
 
@@ -151,6 +118,43 @@ class InitiatePaymentView(APIView):
                 })
             else:
                 return JsonResponse({'error': 'Failed to create payment intent'}, status=500)
+
+    def initiate_stripe_subscription(self, request):
+        try:
+            # Ensure the user has a Stripe customer ID
+            if not request.user.stripe_customer_id:
+                customer = stripe.Customer.create(email=request.user.email)
+                request.user.stripe_customer_id = customer.id
+                request.user.save()
+
+            # Create a Stripe Subscription
+            subscription = stripe.Subscription.create(
+                customer=request.user.stripe_customer_id,
+                items=[{'price': settings.STRIPE_PRICE_ID}],
+                payment_behavior='default_incomplete',
+                expand=['latest_invoice.payment_intent'],
+            )
+
+            intent = subscription.latest_invoice.payment_intent
+            if intent:
+                Payment.objects.create(
+                    user=request.user,
+                    amount=intent.amount / 100.0,  # Convert cents to dollars
+                    currency=intent.currency.upper(),
+                    reference=intent.id,
+                    stripe_payment_intent_id=intent.id,
+                    status="pending",
+                    provider='stripe'
+                )
+                return Response({
+                    'client_secret': intent.client_secret,
+                    'subscription_id': subscription.id,
+                })
+            else:
+                return Response({'error': 'Failed to create subscription'}, status=400)
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe API error: {str(e)}")
+            return Response({'error': str(e)}, status=400)
 
 
 class VerifyPaymentView(APIView):
@@ -327,6 +331,8 @@ class StripeWebhookView(APIView):
         )
 
         event_handlers = {
+            # add customer.created
+            # add customer.deleted
             'payment_intent.succeeded': self.handle_payment_intent_succeeded,
             'customer.subscription.created': self.handle_subscription_created,
             'customer.subscription.updated': self.handle_subscription_updated,
@@ -336,7 +342,7 @@ class StripeWebhookView(APIView):
         }
 
         handler = event_handlers.get(event['type'])
-        print("This is the handler: ", handler)
+        # print("This is the handler: ", handler)
         if handler:
             try:
                 response = handler(event['data']['object'], webhook_log)

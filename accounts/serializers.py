@@ -34,11 +34,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="get_full_name", read_only=True)
     user_role = serializers.CharField(source="get_user_role", read_only=True)
+    country = serializers.CharField(source='organization_profile.country', read_only=True)
+    region = serializers.CharField(source='organization_profile.city', read_only=True)  # Using city as region
 
     class Meta:
         model = models.User
-        # fields = '__all__'
-        exclude = ["password", "groups", "user_permissions"]
+        fields = ['email', 'full_name', 'user_role', 'country', 'region']
 
 
 class ChangePasswordSerializer(serializers.Serializer):

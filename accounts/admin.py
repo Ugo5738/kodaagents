@@ -2,9 +2,17 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from accounts.models import GoogleToken, OrganizationProfile, User
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
+# Inline admin descriptor for OrganizationProfile
+class OrganizationProfileInline(admin.StackedInline):
+    model = OrganizationProfile
+    can_delete = False
+    verbose_name_plural = "Organization Profile"
 
 class UserAdmin(admin.ModelAdmin):
+    inlines = (OrganizationProfileInline,)
+
     list_display = [
         "id",
         "email",
@@ -13,9 +21,11 @@ class UserAdmin(admin.ModelAdmin):
         "gender",
         "email_verified",
         "is_paid",
-        "usage_count"
+        "usage_count",
+        "has_free_access"
     ]
-    list_filter = ["email_verified", "date_of_birth", "is_paid"]
+    list_filter = ["email_verified", "date_of_birth", "is_paid", "has_free_access"]
+    list_editable = ["has_free_access"]
     search_fields = ["email", "username", "phone"]
 
 
