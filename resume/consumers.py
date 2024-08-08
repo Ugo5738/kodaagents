@@ -165,9 +165,6 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             self.user.download_count += 1
 
         self.user.save()
-
-        if self.user.has_reached_limit(action_type):
-            return False, f"Usage limit reached for {action_type}"
         return True, None
 
     async def increment_usage(self, action_type):

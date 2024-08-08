@@ -3,8 +3,7 @@ import mimetypes
 import os
 import re
 import time
-from typing import BinaryIO, Optional, Tuple, Dict, Union, List, Any
-
+from typing import Any, BinaryIO, Dict, List, Optional, Tuple, Union
 from uuid import uuid4
 
 import boto3
@@ -793,7 +792,7 @@ async def get_anth_chat_response(prompt, to_json=True):
     start_time = time.time()
 
     response = await anthropic_client.messages.create(
-        model="claude-3-5-sonnet-20240620",
+        model="claude-3-haiku-20240307", #"claude-3-5-sonnet-20240620",
         max_tokens=4096,  # try 8192
         temperature=0.2,
         messages=[
