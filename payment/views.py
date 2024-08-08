@@ -41,7 +41,7 @@ class InitiatePaymentView(APIView):
 
         tier = get_object_or_404(UserTier, name=tier_name)
 
-        amount = float(tier.cost)
+        amount = float(tier.price)
 
         if payment_type not in ['one_time', 'subscription']:
             return JsonResponse({'error': 'Invalid payment type'}, status=status.HTTP_400_BAD_REQUEST)
