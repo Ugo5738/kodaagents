@@ -62,9 +62,13 @@ class RegisterAPIView(GenericAPIView):
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
+            # Fetch the "free" tier
+            tier = UserTier.objects.get(name=UserTier.FREE)
+
             user = serializer.save()
             user.email_verified = False  # Set email_verified to False initially
             user.email_verification_token = get_random_string(64)
+            user.tier = tier  # Assign the "free" tier to the user
             user.save()
 
             # Send verification email
@@ -158,16 +162,28 @@ class GoogleAuthView(APIView):
             if user is None:
                 # Create a new user
                 logger.info(f"Creating new user for email: {email}")
+
+                # Fetch the "free" tier
+                tier = UserTier.objects.get(name=UserTier.FREE)
+
                 user = User.objects.create_user(
                     email=email,
                     username=name.split()[0] if name else '',  # You might want to generate a unique username
                     first_name=name.split()[0] if name else '',
                     last_name=' '.join(name.split()[1:]) if name else '',
-                    email_verified=True
+                    email_verified=True,
+                    tier=tier  # Assign the "free" tier to the new user
                 )
                 logger.info(f"New user created: {user.id}")
             else:
                 logger.info(f"Existing user found: {user.id}")
+
+                # Check if the user has a tier assigned
+                if user.tier is None:
+                    # Fetch the "free" tier and assign it to the user
+                    tier = UserTier.objects.get(name=UserTier.FREE)
+                    user.tier = tier
+                    user.save()
 
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
