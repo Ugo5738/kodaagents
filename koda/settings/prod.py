@@ -52,7 +52,18 @@ PAYSTACK_WEBHOOK_URL = f"{PAYSTACK_WEBHOOK_DOMAIN}/api/payments/webhook/"
 STRIPE_SECRET_KEY=config("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY=config("STRIPE_PUBLISHABLE_KEY")
 STRIPE_WEBHOOK_SECRET=config("STRIPE_WEBHOOK_SECRET")
-STRIPE_PRICE_ID=config("STRIPE_PRICE_ID")
+STRIPE_PRICE_IDS = {
+    'Essential': config("STRIPE_ESSENTIAL_PRICE_ID"),
+    'Professional': config("STRIPE_PROFESSIONAL_PRICE_ID"),
+    'Premium': config("STRIPE_PREMIUM_PRICE_ID"),
+}
+
+# PAYSTACK_PLAN_CODES = {
+#     'Free': 'plan_code_for_free_tier',
+#     'Essential': 'plan_code_for_essential_tier',
+#     'Professional': 'plan_code_for_professional_tier',
+#     'Premium': 'plan_code_for_premium_tier',
+# }
 # ================================ PAYMENT =======================================
 
 

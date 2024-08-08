@@ -19,13 +19,14 @@ from googleapiclient.discovery import build
 from rest_framework import filters, generics, status, viewsets
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-from accounts.models import GoogleToken, User
+from accounts import serializers
+from accounts.models import GoogleToken, User, UserTier
 from accounts.pagination import CustomPageNumberPagination
 from accounts.serializers import ChangePasswordSerializer, RegisterSerializer, UserSerializer
 from helpers.email_utils import send_verification_email
@@ -190,32 +191,43 @@ class GoogleAuthView(APIView):
         #     return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class UserTierViewSet(viewsets.ModelViewSet):
+    queryset = UserTier.objects.all()
+    serializer_class = serializers.UserTierSerializer
+    permission_classes = [IsAdminUser]  # Only admins can manage tiers
+
+
 class UserPaymentStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
         return Response({
-            'is_paid': user.is_paid,
-            'usage_count': user.usage_count,
-            'has_free_access': user.has_free_access,
-            'free_usage_limit': user.free_usage_limit,
-            'remaining_uses': 'unlimited' if user.is_paid else max(0, user.free_usage_limit - user.usage_count)
+            'tier': user.tier.name if user.tier else 'No active subscription',
+            'download_count': user.download_count,
+            'creation_count': user.creation_count,
+            'customization_count': user.customization_count,
+            'remaining_uses': {
+                'download': user.get_remaining_uses('download'),
+                'creation': user.get_remaining_uses('creation'),
+                'customization': user.get_remaining_uses('customization'),
+            },
+            'needs_payment': user.needs_payment()
         })
 
 
-class UpdateUsageView(APIView):
+class UpdateDownloadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         user = request.user
-        user.usage_count += 1
+        user.download_count += 1
         user.save()
 
-        if not user.is_paid and user.usage_count > user.free_usage_limit:
+        if not user.is_paid and user.download_count > user.free_usage_limit:
             return Response({'error': 'Usage limit reached'}, status=status.HTTP_403_FORBIDDEN)
 
-        return Response({'success': True, 'usage_count': user.usage_count})
+        return Response({'success': True, 'download_count': user.download_count})
 
 
 class LoginView(APIView):

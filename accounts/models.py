@@ -63,10 +63,41 @@ class User(AbstractUser, TrackingModel):
 
     # payment
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
-    is_paid = models.BooleanField(default=False)
-    usage_count = models.IntegerField(default=0)
-    has_free_access = models.BooleanField(default=False)  # Add this field
-    free_usage_limit = models.IntegerField(default=100)
+    tier = models.ForeignKey("UserTier", on_delete=models.SET_NULL, null=True, related_name='users')
+    download_count = models.IntegerField(default=0)
+    creation_count = models.IntegerField(default=0)
+    customization_count = models.IntegerField(default=0)
+
+    @property
+    def total_usage_count(self):
+        return self.creation_count + self.customization_count + self.download_count
+
+    def has_reached_limit(self, action_type):
+        if self.tier is None:
+            return True
+        if action_type == 'download':
+            return self.download_count >= self.tier.download_limit
+        elif action_type == 'creation':
+            return self.creation_count >= self.tier.creation_limit
+        elif action_type == 'customization':
+            return self.customization_count >= self.tier.customization_limit
+        return False
+
+    def get_remaining_uses(self, action_type):
+        if self.tier is None:
+            return 0
+        if action_type == 'download':
+            return max(0, self.tier.download_limit - self.download_count)
+        elif action_type == 'creation':
+            return max(0, self.tier.creation_limit - self.creation_count)
+        elif action_type == 'customization':
+            return max(0, self.tier.customization_limit - self.customization_count)
+        return 0
+
+    def needs_payment(self):
+        return (self.has_reached_limit('download') or
+                self.has_reached_limit('creation') or
+                self.has_reached_limit('customization'))
 
     objects = UserManager()
 
@@ -81,11 +112,34 @@ class User(AbstractUser, TrackingModel):
         verbose_name_plural = _("Users")
 
 
+class UserTier(models.Model):
+    FREE = 'free'
+    ESSENTIAL = 'essential'
+    PROFESSIONAL = 'professional'
+    PREMIUM = 'premium'
+
+    TIER_CHOICES = [
+        (FREE, 'Free'),
+        (ESSENTIAL, 'Essential'),
+        (PROFESSIONAL, 'Professional'),
+        (PREMIUM, 'Premium'),
+    ]
+
+    name = models.CharField(max_length=20, choices=TIER_CHOICES, unique=True)
+    price = models.DecimalField(max_digits=6, decimal_places=2)
+    download_limit = models.IntegerField()
+    creation_limit = models.IntegerField()
+    customization_limit = models.IntegerField()
+
+    def __str__(self):
+        return self.name
+
+
 class OrganizationProfile(TrackingModel):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="organization_profile"
     )
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, blank=True, null=True)
     bio = models.TextField(max_length=500, blank=True, null=True)
 
     # organization address

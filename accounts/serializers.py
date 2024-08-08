@@ -31,6 +31,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+class UserTierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.UserTier
+        fields = '__all__'
+
+
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="get_full_name", read_only=True)
     user_role = serializers.CharField(source="get_user_role", read_only=True)

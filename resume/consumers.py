@@ -2,6 +2,7 @@ import json
 from typing import Any, Dict
 from uuid import uuid4
 
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from koda.config.logging_config import configure_file_logger, configure_logger
@@ -50,7 +51,8 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             handlers = {
                 'resume_uploaded': self.handle_resume_upload,
                 'jobDetails': self.handle_job_details,
-                'customize_document': self.handle_customize_document
+                'customize_document': self.handle_customize_document,
+                'download_document': self.handle_download_document
             }
 
             handler = handlers.get(message_type)
@@ -72,7 +74,8 @@ class ResumeConsumer(AsyncWebsocketConsumer):
     async def handle_job_details(self, data):
         self.session_data['job_details'] = data['details']
         if 'resume_file_key' in self.session_data:
-            await self.process_resume_and_job_details()
+            if await self.increment_usage('creation'):
+                await self.process_resume_and_job_details()
         else:
             await self.send_error("Resume not uploaded yet")
 
@@ -85,7 +88,13 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             await self.send_error("Missing required fields for document customization")
             return
 
-        await self.customize_document(doc_type, doc_url, custom_instruction)
+        if await self.increment_usage('customization'):
+            await self.customize_document(doc_type, doc_url, custom_instruction)
+
+    async def handle_download_document(self, data):
+        if await self.increment_usage('download'):
+            # Implement download logic here
+            pass
 
     async def process_resume_and_job_details(self):
         resume_file_key = self.session_data['resume_file_key']
@@ -143,6 +152,30 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             logger.exception(f"Error customizing document: {e}")
             await self.send_error(f"Error customizing document: {str(e)}")
 
+    @database_sync_to_async
+    def _increment_usage(self, action_type):
+        if self.user.tier is None:
+            return False, "No active subscription"
+
+        if action_type == 'creation':
+            self.user.creation_count += 1
+        elif action_type == 'customization':
+            self.user.customization_count += 1
+        elif action_type == 'download':
+            self.user.download_count += 1
+
+        self.user.save()
+
+        if self.user.has_reached_limit(action_type):
+            return False, f"Usage limit reached for {action_type}"
+        return True, None
+
+    async def increment_usage(self, action_type):
+        success, error_message = await self._increment_usage(action_type)
+        if not success:
+            await self.send_error(error_message)
+        return success
+
     async def send_message(self, message):
         await self.channel_layer.group_send(
             self.resume_group_name,
@@ -158,6 +191,7 @@ class ResumeConsumer(AsyncWebsocketConsumer):
     async def resume_message(self, event):
         await self.send(text_data=json.dumps({"message": event["message"]}))
 
+# SAMPLE RESULTS
 # {
 #   'documents': {
 #     'resume_pdf_url': 'https://kodastorage.s3.amazonaws.com/media/resume/optimized/3083b985-e22d-4b29-a1ee-608f87ea1d41.pdf',

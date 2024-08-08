@@ -1,18 +1,22 @@
 import hashlib
 import hmac
+from datetime import datetime
 
+import stripe
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import transaction
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.decorators import permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
+from accounts.models import User, UserTier
 from helpers.email_utils import (
     send_payment_confirmation_email,
     send_payment_notification_email,
@@ -22,9 +26,6 @@ from koda.config.logging_config import configure_logger
 from payment.models import Payment, Subscription, WebhookLog
 from payment.paystack_api import PaystackAPI
 from payment.stripe_api import StripeAPI
-import stripe
-from django.views.decorators.csrf import csrf_exempt
-from datetime import datetime
 
 logger = configure_logger(__name__)
 
@@ -33,31 +34,26 @@ class InitiatePaymentView(APIView):
 
     def post(self, request):
         data = request.data
-        amount = data.get('amount')
+        tier_name = data.get('tier')
         currency = data.get('currency', 'usd')
         provider = data.get('provider', 'stripe')
         payment_type = data.get('payment_type', 'one_time')  # 'one_time' or 'subscription'
 
-        if not amount and payment_type == 'one_time':
-            return JsonResponse({'error': 'Amount is required for one-time payments'}, status=status.HTTP_400_BAD_REQUEST)
+        tier = get_object_or_404(UserTier, name=tier_name)
+
+        amount = float(tier.cost)
 
         if payment_type not in ['one_time', 'subscription']:
             return JsonResponse({'error': 'Invalid payment type'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            if payment_type == 'one_time':
-                amount = float(amount)
-        except ValueError:
-            return JsonResponse({'error': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
-
         if provider == 'paystack':
-            return self.initiate_paystack_payment(request, amount, currency, payment_type)
+            return self.initiate_paystack_payment(request, amount, currency, payment_type, tier)
         elif provider == 'stripe':
-            return self.initiate_stripe_payment(request, amount, currency, payment_type)
+            return self.initiate_stripe_payment(request, amount, currency, payment_type, tier)
         else:
             return JsonResponse({'error': 'Invalid payment provider'}, status=400)
 
-    def initiate_paystack_payment(self, request, amount, currency, payment_type):
+    def initiate_paystack_payment(self, request, amount, currency, payment_type, tier):
         paystack = PaystackAPI()
         if payment_type == 'subscription':
             response = paystack.initialize_subscription(
@@ -70,7 +66,8 @@ class InitiatePaymentView(APIView):
                 Subscription.objects.create(
                     user=request.user,
                     paystack_subscription_code=response['data']['subscription_code'],
-                    provider='paystack'
+                    provider='paystack',
+                    tier=tier
                 )
                 return JsonResponse({'authorization_url': response['data']['authorization_url']})
             else:
@@ -89,28 +86,30 @@ class InitiatePaymentView(APIView):
                     amount=amount,
                     currency=currency,
                     reference=response['data']['reference'],
-                    provider='paystack'
+                    provider='paystack',
+                    tier=tier
                 )
                 return JsonResponse({'authorization_url': response['data']['authorization_url']})
             else:
                 return JsonResponse({'error': 'Failed to initialize transaction'}, status=500)
 
-    def initiate_stripe_payment(self, request, amount, currency, payment_type):
+    def initiate_stripe_payment(self, request, amount, currency, payment_type, tier):
         stripe_api = StripeAPI()
 
         if payment_type == 'subscription':
-            return self.initiate_stripe_subscription(request)
+            return self.initiate_stripe_subscription(request, tier)
         else:
             intent = stripe_api.create_payment_intent(amount, request.user.email, currency)
 
             if intent:
                 Payment.objects.create(
                     user=request.user,
-                    amount=amount,
+                    amount=tier.price,
                     currency=currency,
                     reference=intent.id,
                     stripe_payment_intent_id=intent.id,
-                    provider='stripe'
+                    provider='stripe',
+                    tier=tier
                 )
                 return JsonResponse({
                     'client_secret': intent.client_secret,
@@ -119,7 +118,7 @@ class InitiatePaymentView(APIView):
             else:
                 return JsonResponse({'error': 'Failed to create payment intent'}, status=500)
 
-    def initiate_stripe_subscription(self, request):
+    def initiate_stripe_subscription(self, request, tier):
         try:
             # Ensure the user has a Stripe customer ID
             if not request.user.stripe_customer_id:
@@ -130,7 +129,7 @@ class InitiatePaymentView(APIView):
             # Create a Stripe Subscription
             subscription = stripe.Subscription.create(
                 customer=request.user.stripe_customer_id,
-                items=[{'price': settings.STRIPE_PRICE_ID}],
+                items=[{'price': self.get_stripe_price_id(tier)}],
                 payment_behavior='default_incomplete',
                 expand=['latest_invoice.payment_intent'],
             )
@@ -139,12 +138,13 @@ class InitiatePaymentView(APIView):
             if intent:
                 Payment.objects.create(
                     user=request.user,
-                    amount=intent.amount / 100.0,  # Convert cents to dollars
+                    amount=tier.price,  # Convert cents to dollars
                     currency=intent.currency.upper(),
                     reference=intent.id,
                     stripe_payment_intent_id=intent.id,
                     status="pending",
-                    provider='stripe'
+                    provider='stripe',
+                    tier=tier
                 )
                 return Response({
                     'client_secret': intent.client_secret,
@@ -155,6 +155,14 @@ class InitiatePaymentView(APIView):
         except stripe.error.StripeError as e:
             logger.error(f"Stripe API error: {str(e)}")
             return Response({'error': str(e)}, status=400)
+
+    def get_stripe_price_id(self, tier):
+        price_ids = {
+            UserTier.ESSENTIAL: settings.STRIPE_PRICE_IDS['Essential'],
+            UserTier.PROFESSIONAL: settings.STRIPE_PRICE_IDS['Professional'],
+            UserTier.PREMIUM: settings.STRIPE_PRICE_IDS['Premium'],
+        }
+        return price_ids.get(tier.name)
 
 
 class VerifyPaymentView(APIView):
@@ -380,7 +388,7 @@ class StripeWebhookView(APIView):
                 payment.save()
 
                 user = payment.user
-                user.is_paid = True
+                user.tier = payment.tier
                 user.save()
 
             # Send payment notification email
@@ -403,16 +411,19 @@ class StripeWebhookView(APIView):
         current_period_start = datetime.fromtimestamp(subscription['current_period_start'])
         current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
 
+        tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
+
         Subscription.objects.create(
             user=user,
             stripe_subscription_id=subscription['id'],
             status=subscription['status'],
             current_period_start=current_period_start,
             current_period_end=current_period_end,
-            provider='stripe'
+            provider='stripe',
+            tier=tier
         )
 
-        user.is_paid = subscription['status'] == 'active'
+        user.tier = tier
         user.save()
 
         send_subscription_status_email(user.email, 'created')
@@ -434,16 +445,20 @@ class StripeWebhookView(APIView):
         sub.cancel_at_period_end = cancel_at_period_end
         if subscription['status'] == 'canceled':
             sub.canceled_at = subscription['canceled_at']
+
+        # Update tier if it has changed
+        new_tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
+        if new_tier != sub.tier:
+            sub.tier = new_tier
+            sub.user.tier = new_tier
+            sub.user.save()
+
         sub.save()
 
-        user = sub.user
-        user.is_paid = sub.is_active()
-        user.save()
-
         if subscription['status'] == 'past_due':
-            send_subscription_status_email(user.email, 'payment_failed')
+            send_subscription_status_email(sub.user.email, 'payment_failed')
         elif subscription['status'] == 'canceled':
-            send_subscription_status_email(user.email, 'cancelled')
+            send_subscription_status_email(sub.user.email, 'cancelled')
 
         return Response(status=status.HTTP_200_OK)
 
@@ -457,7 +472,7 @@ class StripeWebhookView(APIView):
         sub.save()
 
         user = sub.user
-        user.is_paid = False
+        user.tier = UserTier.objects.get(name=UserTier.FREE)
         user.save()
 
         send_subscription_status_email(user.email, 'cancelled')
@@ -477,13 +492,9 @@ class StripeWebhookView(APIView):
             status='success',
             provider='stripe',
             stripe_charge_id=invoice['charge'],
-            subscription=sub
+            subscription=sub,
+            tier=sub.tier
         )
-
-        # Ensure user is marked as paid
-        user = sub.user
-        user.is_paid = True
-        user.save()
 
         send_payment_confirmation_email(payment)
         return Response(status=status.HTTP_200_OK)
@@ -497,13 +508,18 @@ class StripeWebhookView(APIView):
         sub.status = 'past_due'
         sub.save()
 
-        user = sub.user
-        user.is_paid = False
-        user.save()
-
-        send_subscription_status_email(user.email, 'payment_failed')
+        send_subscription_status_email(sub.user.email, 'payment_failed')
         return Response(status=status.HTTP_200_OK)
 
+    def get_tier_from_stripe_price(self, price_id):
+        # Map Stripe price IDs to UserTier instances
+        price_to_tier = {
+            settings.STRIPE_PRICE_IDS['Essential']: UserTier.ESSENTIAL,
+            settings.STRIPE_PRICE_IDS['Professional']: UserTier.PROFESSIONAL,
+            settings.STRIPE_PRICE_IDS['Premium']: UserTier.PREMIUM,
+        }
+        tier_name = price_to_tier.get(price_id, UserTier.FREE)
+        return UserTier.objects.get(name=tier_name)
 
 @permission_classes([AllowAny])
 class PaystackWebhookView(APIView):

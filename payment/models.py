@@ -2,7 +2,7 @@ from dateutil.relativedelta import relativedelta
 from django.db import models
 from django.utils import timezone
 
-from accounts.models import User
+from accounts.models import User, UserTier
 
 
 class Payment(models.Model):
@@ -31,6 +31,7 @@ class Payment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     subscription = models.ForeignKey("Subscription", on_delete=models.SET_NULL, null=True, blank=True)
+    tier = models.ForeignKey(UserTier, on_delete=models.SET_NULL, null=True)
 
     # New fields for Stripe
     stripe_payment_intent_id = models.CharField(max_length=200, blank=True, null=True)
@@ -59,6 +60,7 @@ class Subscription(models.Model):
     cancel_at_period_end = models.BooleanField(default=False)
     canceled_at = models.DateTimeField(null=True, blank=True)
     provider = models.CharField(max_length=10, choices=Payment.PROVIDER_CHOICES)
+    tier = models.ForeignKey(UserTier, on_delete=models.SET_NULL, null=True)
 
     def is_active(self):
         return self.status in ['trialing', 'active']

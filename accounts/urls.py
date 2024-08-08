@@ -11,6 +11,7 @@ from accounts import forms, views
 router = routers.DefaultRouter()
 
 router.register(r"users", views.UserViewSet, basename="user")
+router.register(r"tiers", views.UserTierViewSet, basename="tiers")
 
 admin_urls = [
     path('', include(router.urls)),
@@ -55,7 +56,7 @@ google_auth_urls = [
 
 payment_urls = [
     path('payment-status/', views.UserPaymentStatusView.as_view(), name='user_payment_status'),
-    path('update-usage/', views.UpdateUsageView.as_view(), name='update_usage'),
+    path('update-download/', views.UpdateDownloadView.as_view(), name='update_usage'),
 ]
 
 password_urls = [
