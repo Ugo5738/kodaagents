@@ -170,7 +170,7 @@ def send_payment_notification_email(payment):
 
 def send_subscription_status_email(email, status):
     subject_map = {
-        'created': 'Welcome to Your New Subscription!',
+        'created': 'Welcome to ResumeGuru.Pro!',
         'cancelled': 'Your Subscription Has Been Cancelled',
         'payment_failed': 'Subscription Payment Failed'
     }

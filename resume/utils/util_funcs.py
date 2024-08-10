@@ -792,7 +792,7 @@ async def get_anth_chat_response(prompt, to_json=True):
     start_time = time.time()
 
     response = await anthropic_client.messages.create(
-        model="claude-3-5-sonnet-20240620",  # "claude-3-haiku-20240307",
+        model="claude-3-5-sonnet-20240620", # "claude-3-5-sonnet-20240620", # "claude-3-haiku-20240307",
         max_tokens=4096,  # try 8192
         temperature=0.2,
         messages=[

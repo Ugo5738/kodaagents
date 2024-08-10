@@ -339,8 +339,9 @@ class StripeWebhookView(APIView):
         )
 
         event_handlers = {
-            # add customer.created
-            # add customer.deleted
+            'customer.created': self.handle_customer_created,
+            'customer.updated': self.handle_customer_updated,
+            'customer.deleted': self.handle_customer_deleted,
             'payment_intent.succeeded': self.handle_payment_intent_succeeded,
             'customer.subscription.created': self.handle_subscription_created,
             'customer.subscription.updated': self.handle_subscription_updated,
@@ -405,6 +406,7 @@ class StripeWebhookView(APIView):
     def handle_subscription_created(self, subscription, webhook_log):
         user = User.objects.filter(stripe_customer_id=subscription['customer']).first()
         if not user:
+            logger.error(f"User not found for customer ID: {subscription['customer']}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         # Convert Unix timestamps to datetime objects
@@ -432,19 +434,20 @@ class StripeWebhookView(APIView):
     def handle_subscription_updated(self, subscription, webhook_log):
         sub = Subscription.objects.filter(stripe_subscription_id=subscription['id']).first()
         if not sub:
+            logger.error(f"Subscription not found: {subscription['id']}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         # Convert Unix timestamps to datetime objects
         current_period_start = datetime.fromtimestamp(subscription['current_period_start'])
         current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
-        cancel_at_period_end = datetime.fromtimestamp(subscription['cancel_at_period_end'])
+        cancel_at_period_end = subscription.get('cancel_at_period_end', False)
 
         sub.status = subscription['status']
         sub.current_period_start = current_period_start
         sub.current_period_end = current_period_end
         sub.cancel_at_period_end = cancel_at_period_end
         if subscription['status'] == 'canceled':
-            sub.canceled_at = subscription['canceled_at']
+            sub.canceled_at = datetime.fromtimestamp(subscription['canceled_at'])
 
         # Update tier if it has changed
         new_tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
@@ -520,6 +523,39 @@ class StripeWebhookView(APIView):
         }
         tier_name = price_to_tier.get(price_id, UserTier.FREE)
         return UserTier.objects.get(name=tier_name)
+
+    def handle_customer_created(self, customer, webhook_log):
+        # # Logic to handle customer creation
+        # user = User.objects.filter(email=customer['email']).first()
+        # if user:
+        #     user.stripe_customer_id = customer['id']
+        #     user.save()
+        # logger.info(f"Customer created: {customer['id']}")
+        # return Response(status=status.HTTP_200_OK)
+        pass
+
+    def handle_customer_updated(self, customer, webhook_log):
+        # # Logic to handle customer update
+        # user = User.objects.filter(stripe_customer_id=customer['id']).first()
+        # if user:
+        #     # Update user details if necessary
+        #     # For example, update email if it has changed
+        #     if user.email != customer['email']:
+        #         user.email = customer['email']
+        #         user.save()
+        # logger.info(f"Customer updated: {customer['id']}")
+        # return Response(status=status.HTTP_200_OK)
+        pass
+
+    def handle_customer_deleted(self, customer, webhook_log):
+        # # Logic to handle customer deletion
+        # user = User.objects.filter(stripe_customer_id=customer['id']).first()
+        # if user:
+        #     user.stripe_customer_id = None
+        #     user.save()
+        # logger.info(f"Customer deleted: {customer['id']}")
+        # return Response(status=status.HTTP_200_OK)
+        pass
 
 @permission_classes([AllowAny])
 class PaystackWebhookView(APIView):
