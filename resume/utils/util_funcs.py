@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, BinaryIO, Dict, List, Optional, Tuple, Union
 from uuid import uuid4
 
+import anthropic
 import boto3
 import textstat as textstat_analysis
 from botocore.exceptions import BotoCoreError, ClientError
@@ -95,8 +96,8 @@ resume_example_structure = json.dumps(
             "linkedIn": "LinkedIn Profile url (if available)",
         },
         "summary": "Resume Executive Summary",
-        "experiences": {
-            "experience_1": {
+        "experiences": [
+            {
                 "company_name": "Name of company worked for",
                 "job_role": "Job Position",
                 "start_date": "Start date of job",
@@ -109,19 +110,33 @@ resume_example_structure = json.dumps(
                     # Additional descriptions can be added here
                 ],
             },
-            "experience_2": {
-                "job_title": "Job Position",
+            {
+                "company_name": "Name of company worked for",
+                "job_role": "Job Position",
                 "start_date": "Start date of job",
                 "end_date": "End date of job if available",
-                "job_description": "Description of Job Responsibilities and Achievements",
+                "location": "Location of the company",
+                "job_description": [
+                    "First Description of Job Responsibilities and Achievements",
+                    "Second Description of Job Responsibilities and Achievements",
+                    "Third Description of Job Responsibilities and Achievements",
+                    # Additional descriptions can be added here
+                ],
             },
-            "experience_3": {
-                "job_title": "Job Position",
+            {
+                "company_name": "Name of company worked for",
+                "job_role": "Job Position",
                 "start_date": "Start date of job",
                 "end_date": "End date of job if available",
-                "job_description": "Description of Job Responsibilities and Achievements",
+                "location": "Location of the company",
+                "job_description": [
+                    "First Description of Job Responsibilities and Achievements",
+                    "Second Description of Job Responsibilities and Achievements",
+                    "Third Description of Job Responsibilities and Achievements",
+                    # Additional descriptions can be added here
+                ],
             },
-        },
+        ],
         "education": [
             {
                 "institution": "Educational Institution",
@@ -1039,9 +1054,9 @@ def get_structure(api_type: ApiType) -> Dict:
             "job_tailored_section_review": {
                 "section_name": "review"
             },
-            "improved_resume_content": json.loads(resume_example_structure),
+            "improved_resume_content": resume_example_structure,
             "job_match_score": "float",  # Only if job description provided
-            "cover_letter": json.loads(cover_letter_example_structure),
+            "cover_letter": cover_letter_example_structure,
             "improvement_summary": {
                 "key_changes": ["string"],
                 "ats_optimization": "string",
@@ -1173,20 +1188,63 @@ async def analyze_and_improve_document(doc_type="resume", content=None, job_desc
     # treat bug of incorrect pdf document formating that happens occasionally
     start_time = time.time()
     result = {}
+
     try:
         api_type = ApiType.ANTHROPIC
         structure = get_structure(api_type)
         prompt = get_prompt(api_type, doc_type, structure, content, job_description)
         result = await get_anth_chat_response(prompt)
+
+        experiences_list = result["improved_resume_content"]["experiences"]
+        experiences_dict = {
+            f"experience_{i+1}": experience for i, experience in enumerate(experiences_list)
+        }
+        result["improved_resume_content"]["experiences"] = experiences_dict
+
         total = time.time() - start_time
         logger.info(f"Chat Response Time: {total}")
-    except ValueError as e:
-        logger.error(f"Failed to get valid response from Anthropic. Switched to OpenAI: {e}")
+
+    except anthropic.InternalServerError as e:
+        if e.error.get('type') == 'overloaded_error':
+            logger.error("Anthropic API is overloaded. Switching to OpenAI.")
+        else:
+            logger.error("Anthropic API internal server error. Switching to OpenAI.")
+
         api_type = ApiType.OPENAI
         structure = get_structure(api_type)
-        # make experiences a list of objects not just 3 stipulated objects
         prompt = get_prompt(api_type, doc_type, structure, content, job_description)
         result = await get_openai_chat_response(prompt, content, structure)
+
+        total = time.time() - start_time
+        logger.info(f"Chat Response Time: {total}")
+
+    except anthropic.RateLimitError as e:
+        logger.error("Anthropic API rate limit exceeded. Switching to OpenAI.")
+        api_type = ApiType.OPENAI
+        structure = get_structure(api_type)
+        prompt = get_prompt(api_type, doc_type, structure, content, job_description)
+        result = await get_openai_chat_response(prompt, content, structure)
+
+        total = time.time() - start_time
+        logger.info(f"Chat Response Time: {total}")
+
+    except anthropic.APIConnectionError as e:
+        logger.error("Anthropic API connection error. Switching to OpenAI.")
+        api_type = ApiType.OPENAI
+        structure = get_structure(api_type)
+        prompt = get_prompt(api_type, doc_type, structure, content, job_description)
+        result = await get_openai_chat_response(prompt, content, structure)
+
+        total = time.time() - start_time
+        logger.info(f"Chat Response Time: {total}")
+
+    except Exception as e:
+        logger.error(f"Unexpected error occurred: {e}. Switching to OpenAI.")
+        api_type = ApiType.OPENAI
+        structure = get_structure(api_type)
+        prompt = get_prompt(api_type, doc_type, structure, content, job_description)
+        result = await get_openai_chat_response(prompt, content, structure)
+
         total = time.time() - start_time
         logger.info(f"Chat Response Time: {total}")
 
