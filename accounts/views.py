@@ -246,6 +246,27 @@ class UpdateDownloadView(APIView):
         return Response({'success': True, 'download_count': user.download_count})
 
 
+class ResetUsageCountsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        # Decrement counts if they're greater than 0
+        if user.creation_count > 0:
+            user.creation_count -= 1
+        if user.customization_count > 0:
+            user.customization_count -= 1
+
+        user.save()
+
+        return Response({
+            'success': True,
+            'creation_count': user.creation_count,
+            'customization_count': user.customization_count,
+        })
+
+
 class LoginView(APIView):
     def post(self, request: Request) -> Response:
         email = request.data.get('email')
@@ -417,6 +438,7 @@ class UserView(APIView):
         user = User.objects.filter(id=payload["id"]).first()
         serializer = UserSerializer(user)
         return Response(serializer.data)
+
 
 class CurrentUserDetailView(APIView):
     """

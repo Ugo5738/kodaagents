@@ -388,10 +388,6 @@ class StripeWebhookView(APIView):
 
                 payment.save()
 
-                user = payment.user
-                user.tier = payment.tier
-                user.save()
-
             # Send payment notification email
             send_payment_confirmation_email(payment)
             send_payment_notification_email(payment)
@@ -415,18 +411,19 @@ class StripeWebhookView(APIView):
 
         tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
 
-        Subscription.objects.create(
-            user=user,
-            stripe_subscription_id=subscription['id'],
-            status=subscription['status'],
-            current_period_start=current_period_start,
-            current_period_end=current_period_end,
-            provider='stripe',
-            tier=tier
-        )
+        with transaction.atomic():
+            Subscription.objects.create(
+                user=user,
+                stripe_subscription_id=subscription['id'],
+                status=subscription['status'],
+                current_period_start=current_period_start,
+                current_period_end=current_period_end,
+                provider='stripe',
+                tier=tier
+            )
 
-        user.tier = tier
-        user.save()
+            user.tier = tier
+            user.save()
 
         send_subscription_status_email(user.email, 'created')
         return Response(status=status.HTTP_200_OK)
@@ -521,7 +518,7 @@ class StripeWebhookView(APIView):
             settings.STRIPE_PRICE_IDS['Professional']: UserTier.PROFESSIONAL,
             settings.STRIPE_PRICE_IDS['Premium']: UserTier.PREMIUM,
         }
-        tier_name = price_to_tier.get(price_id, UserTier.FREE)
+        tier_name = price_to_tier.get(price_id, UserTier.ESSENTIAL)
         return UserTier.objects.get(name=tier_name)
 
     def handle_customer_created(self, customer, webhook_log):

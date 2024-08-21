@@ -22,6 +22,7 @@ django-storages
 djangorestframework
 djangorestframework-simplejwt
 dj-database-url
+docx2txt
 drf-spectacular
 drf-yasg
 # factory_boy

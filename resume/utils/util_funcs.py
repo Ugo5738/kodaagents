@@ -2,7 +2,9 @@ import json
 import mimetypes
 import os
 import re
+import tempfile
 import time
+from enum import Enum
 from typing import Any, BinaryIO, Dict, List, Optional, Tuple, Union
 from uuid import uuid4
 
@@ -13,14 +15,19 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import OnlinePDFLoader, TextLoader
+from langchain_community.document_loaders import (
+    Docx2txtLoader,
+    OnlinePDFLoader,
+    PyPDFLoader,
+    TextLoader,
+    UnstructuredFileLoader,
+)
 from langchain_openai import ChatOpenAI
 from sklearn.feature_extraction.text import CountVectorizer
 from spellchecker import SpellChecker
 from textblob import TextBlob
 
-from koda.config.base_config import anthropic_client
-from koda.config.base_config import openai_client as client
+from koda.config.base_config import anthropic_client, openai_client
 from koda.config.logging_config import configure_logger
 from resume.document import generate_cover_letter_docx, generate_resume_docx
 from resume.pdf_gen import generate_cv_pdf, generate_resume_pdf
@@ -161,55 +168,226 @@ resume_example_structure = json.dumps(
 )
 
 
+resume_example_structure_openai = {
+    "type": "object",
+    "properties": {
+        "contact": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "job_title": {"type": "string"},
+                "address": {"type": "string"},
+                "phone": {"type": "string"},
+                "email": {"type": "string"},
+                "linkedIn": {
+                  "type": ["string", "null"],
+                }
+            },
+            "additionalProperties": False,
+            "required": ["name", "job_title", "address", "phone", "email", "linkedIn"]
+        },
+        "summary": {"type": "string"},
+        "experiences": {
+            "type": "object",
+            "properties": {
+                "experience_1": {
+                    "type": "object",
+                    "properties": {
+                        "company_name": {"type": "string"},
+                        "job_role": {"type": "string"},
+                        "start_date": {"type": "string"},
+                        "end_date": {
+                          "type": ["string", "null"],
+                        },
+                        "location": {"type": "string"},
+                        "job_description": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        }
+                    },
+                    "additionalProperties": False,
+                    "required": ["company_name", "job_role", "start_date", "end_date", "location", "job_description"]
+                },
+                "experience_2": {
+                    "type": "object",
+                    "properties": {
+                        "company_name": {"type": "string"},
+                        "job_role": {"type": "string"},
+                        "start_date": {"type": "string"},
+                        "end_date": {
+                          "type": ["string", "null"],
+                        },
+                        "location": {"type": "string"},
+                        "job_description": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        }
+                    },
+                    "additionalProperties": False,
+                    "required": ["company_name", "job_role", "start_date", "end_date", "location", "job_description"]
+                },
+                "experience_3": {
+                    "type": "object",
+                    "properties": {
+                        "company_name": {"type": "string"},
+                        "job_role": {"type": "string"},
+                        "start_date": {"type": "string"},
+                        "end_date": {
+                          "type": ["string", "null"],
+                        },
+                        "location": {"type": "string"},
+                        "job_description": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        }
+                    },
+                    "additionalProperties": False,
+                    "required": ["company_name", "job_role", "start_date", "end_date", "location", "job_description"]
+                }
+            },
+            "additionalProperties": False,
+            "required": ["experience_1", "experience_2", "experience_3"]
+        },
+        "education": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "institution": {"type": "string"},
+                    "degree": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "location": {"type": "string"},
+                    "details": {"type": "string"}
+                },
+                "additionalProperties": False,
+                "required": ["institution", "degree", "end_date", "location", "details"]
+            }
+        },
+        "skills": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "certifications": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "issuing_organization": {"type": "string"},
+                    "date_obtained": {"type": "string"},
+                    "validity_period": {"type": "string"}
+                },
+                "additionalProperties": False,
+                "required": ["title", "issuing_organization", "date_obtained", "validity_period"]
+            }
+        },
+        "references": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "referee_name": {
+                      "type": ["string", "null"],
+                    },
+                    "relationship": {
+                      "type": ["string", "null"],
+                    },
+                    "contact_information": {
+                      "type": ["string", "null"],
+                    }
+                },
+                "additionalProperties": False,
+                "required": ["referee_name", "relationship", "contact_information"]
+            }
+        }
+    },
+    "required": ["contact", "summary", "experiences", "education", "skills", "certifications", "references"],
+    "additionalProperties": False,
+}
+
+
+cover_letter_example_structure_openai = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "recipient": {"type": "string"},
+        "body": {"type": "string"},
+        "closing": {"type": "string"}
+    },
+    "required": ["name", "recipient", "body", "closing"],
+    "additionalProperties": False,
+}
+
+
+resume_fb_example_structure_openai = {
+    "type": "object",
+    "properties": {
+        "contact": {"type": "string"},
+        "summary": {"type": "string"},
+        "experiences": {
+            "type": "object",
+            "properties": {
+                "experience_1": {"type": "string"},
+                "experience_2": {"type": "string"},
+                "experience_3": {"type": "string"},
+            }
+        },
+        "education": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "skills": {"type": "string"},
+        "certifications": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "references": {
+            "type": "array",
+            "items": {"type": "string"}
+        }
+    }
+}
+
+
 job_post_keywords_example_structure = json.dumps(
     {"keywords": "List of keywords"},
     indent=2,
 )
 
 
-async def get_chat_response(instruction, message, doc_type=None, anthropic=None):
+async def get_openai_chat_response(instruction, message, prompt_format):
     start_time = time.time()
 
-    chat = ChatOpenAI(
-        temperature=0.9,
-        model_name="gpt-4o",
-        # model_name="gpt-3.5-turbo-0125",
-        openai_api_key=settings.OPENAI_API_KEY,
+    # chat = ChatOpenAI(
+    #     temperature=0.9,
+    #     model_name="chatgpt-4o-latest",
+    #     openai_api_key=settings.OPENAI_API_KEY,
+    # )
+
+    # messages = [SystemMessage(content=instruction), HumanMessage(content=message)]
+
+    messages = [
+        {"role": "system", "content": instruction},
+        {"role": "user", "content": message},
+    ]
+
+    structured_response = await openai_client.chat.completions.create(
+        model="gpt-4o-2024-08-06",  # "chatgpt-4o-latest",
+        messages=messages,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+              "name": "doc_response",
+              "strict": True,
+              "schema": prompt_format,
+            }
+        },
     )
 
-    messages = [SystemMessage(content=instruction), HumanMessage(content=message)]
-
-    if doc_type:
-        if doc_type == "CL":
-            structured_instruction = f"{instruction}\n\nHere is how I would like the information to be structured in JSON format:\n{cover_letter_example_structure}\n\nInclude line breaks where appropriate in all the sections of the letter. Now, based on the content provided above, please structure the document content accordingly."
-        elif doc_type == "R":
-            structured_instruction = f"{instruction}\n\nHere is how I would like the information to be structured in JSON format:\n{resume_example_structure}\n\nIf there isn't any provided value for the required key in the json format, return None as corresponding value.\nInclude line breaks where appropriate in all the sections of the letter. Now, based on the content provided above, please structure the document content accordingly."
-        elif doc_type == "R-sections-fb":
-            structured_instruction = f"{instruction}\n\nHere is how I would like the information to be structured in JSON format:\n{resume_fb_example_structure}\n\nDo not miss any key value pair when creating the JSON data."
-
-        messages = [
-            {"role": "system", "content": structured_instruction},
-            {"role": "user", "content": message},
-        ]
-
-        structured_response = await client.chat.completions.create(
-            model="gpt-4o",
-            # model_name="gpt-3.5-turbo-0125",
-            messages=messages,
-            response_format={"type": "json_object"},
-        )
-
-        response = json.loads(structured_response.choices[0].message.content)
-
-        total = time.time() - start_time
-        logger.info(f"Chat Response Time: {total}")
-
-        return response
-
-    response = chat(messages).content
-
+    response = json.loads(structured_response.choices[0].message.content)
     total = time.time() - start_time
     logger.info(f"Chat Response Time: {total}")
+
     return response
 
 
@@ -298,7 +476,7 @@ async def review_tone(doc_type, text):
 
     Provide feedback on each of these aspects.
     """
-    tone_feedback = await get_chat_response(instruction, text)
+    tone_feedback = await get_openai_chat_response(instruction, text)
 
     feedback_title = "Tone Review:\n"
     final_feedback = feedback_title + tone_feedback
@@ -321,7 +499,7 @@ async def resume_sections_feedback(doc_text):
     You are a professional recruiter. Review each resume section based on professionalism, assertiveness, compassion and impact where necessary and provide constructive feedback to help in improving the resume:
     """
 
-    resume_feedback = await get_chat_response(
+    resume_feedback = await get_openai_chat_response(
         instruction, doc_text, doc_type="R-sections-fb"
     )
 
@@ -354,7 +532,7 @@ async def get_job_post_feedback(doc_text):
     - Required Qualifications
     """
 
-    job_post_feedback = await get_chat_response(instruction, doc_text)
+    job_post_feedback = await get_openai_chat_response(instruction, doc_text)
 
     logger.info(f"{job_post_feedback}")
 
@@ -381,7 +559,7 @@ async def create_doc(doc_type_1, doc_type_2, doc_content, default_doc):
     {default_doc}
     """
 
-    created_content = await get_chat_response(instruction, content, doc_type="CL")
+    created_content = await get_openai_chat_response(instruction, content, doc_type="CL")
 
     logger.info(
         f"----------------------- CREATED {doc_type_1.upper()} -----------------------"
@@ -425,15 +603,15 @@ async def improve_doc(doc_type, doc_content, doc_feedback):
         content_feedback_combined = f"ORIGINAL CONTENT:\n{doc_content}"
 
     if doc_type == "cover letter":
-        optimized_content = await get_chat_response(
+        optimized_content = await get_openai_chat_response(
             instruction, content_feedback_combined, doc_type="CL"
         )
     elif doc_type == "resume":
-        optimized_content = await get_chat_response(
+        optimized_content = await get_openai_chat_response(
             instruction, content_feedback_combined, doc_type="R"
         )
     elif doc_type == "job post":
-        optimized_content = await get_chat_response(
+        optimized_content = await get_openai_chat_response(
             instruction, content_feedback_combined
         )
 
@@ -467,9 +645,9 @@ async def customize_doc(doc_type, doc_content, custom_instruction):
     if doc_type == "cover_letter":
         doc_type = "cover letter"
     if doc_type == "cover letter":
-        optimized_content = await get_chat_response(instruction, content, doc_type="CL")
+        optimized_content = await get_openai_chat_response(instruction, content, doc_type="CL")
     elif doc_type == "resume":
-        optimized_content = await get_chat_response(instruction, content, doc_type="R")
+        optimized_content = await get_openai_chat_response(instruction, content, doc_type="R")
 
     logger.info(
         f"----------------------- CUSTOMIZATION DONE -----------------------"
@@ -537,9 +715,9 @@ async def optimize_doc(doc_type, doc_text, job_description):
     """
 
     if doc_type == "cover letter":
-        optimized_content = await get_chat_response(instruction, content, doc_type="CL")
+        optimized_content = await get_openai_chat_response(instruction, content, doc_type="CL")
     elif doc_type == "resume":
-        optimized_content = await get_chat_response(instruction, content, doc_type="R")
+        optimized_content = await get_openai_chat_response(instruction, content, doc_type="R")
 
     logger.info(
         f"----------------------- {doc_type.upper()} TAILORED -----------------------"
@@ -625,6 +803,7 @@ async def improve_resume_with_analysis(resume_content):
     )
     return improved_content
 
+
 async def get_doc_urls(resume_content=None, job_post_content=None):
     start_time = time.time()
 
@@ -665,31 +844,45 @@ async def get_doc_urls(resume_content=None, job_post_content=None):
 
     return resume_url, cl_url
 
+
 async def load_document(file_key=None, doc_url=None):
     if doc_url:
         loader = OnlinePDFLoader(doc_url)
         data = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        texts = text_splitter.split_documents(data)
-        return "   ".join(t.page_content for t in texts)
+        # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+        # texts = text_splitter.split_documents(data)
+        # return "   ".join(t.page_content for t in texts)
+    elif file_key:
+        with default_storage.open(file_key, 'rb') as file:
+            file_content = file.read()
+            file_extension = os.path.splitext(file_key)[1].lower()
 
-    with default_storage.open(file_key, 'rb') as file:
-        temp_file_path = f"/tmp/{uuid4()}.pdf"
-        with open(temp_file_path, 'wb') as temp_file:
-            temp_file.write(file.read())
+            # Create a temporary file for all types
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
+                temp_file.write(file_content)
+                temp_file_path = temp_file.name
 
-    file_extension = os.path.splitext(file_key)[1]
+            try:
+                if file_extension == ".pdf":
+                    loader = PyPDFLoader(temp_file_path)
+                elif file_extension in ['.docx', '.doc']:
+                    loader = Docx2txtLoader(temp_file_path)
+                elif file_extension == '.txt':
+                    loader = TextLoader(temp_file_path)
+                else:
+                    # For unknown file types, use a more generic loader
+                    loader = UnstructuredFileLoader(temp_file_path)
 
-    if file_extension == ".pdf":
-        loader = OnlinePDFLoader(temp_file_path)
+                data = loader.load()
+            finally:
+                os.unlink(temp_file_path)  # Delete the temporary file
     else:
-        with open(temp_file_path, 'r', encoding='utf-8') as temp_file:
-            loader = TextLoader(temp_file.read())
+        raise ValueError("Either file_key or doc_url must be provided")
 
-    data = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
     texts = text_splitter.split_documents(data)
     return "   ".join(t.page_content for t in texts)
+
 
 async def generate_documents(doc_type: str, content: str, is_optimized: bool) -> Tuple[bytes, bytes]:
     filename_prefix = "Customized Optimized" if is_optimized else "Improved"
@@ -826,79 +1019,206 @@ async def get_anth_chat_response(prompt, to_json=True):
     return edited_message
 
 
-async def analyze_and_improve_document(doc_type="resume", content=None, job_description=None):
-    start_time = time.time()
+class ApiType(Enum):
+    ANTHROPIC = "anthropic"
+    OPENAI = "openai"
+
+
+def get_structure(api_type: ApiType) -> Dict:
+    if api_type == ApiType.ANTHROPIC:
+        return {
+            "analysis": {
+                "readability": "string",
+                "tone": "string",
+                "structure": "string",
+                "keywords": "string",  # Only if job description provided
+            },
+            "general_section_review": {
+                "section_name": "review"
+            },
+            "job_tailored_section_review": {
+                "section_name": "review"
+            },
+            "improved_resume_content": json.loads(resume_example_structure),
+            "job_match_score": "float",  # Only if job description provided
+            "cover_letter": json.loads(cover_letter_example_structure),
+            "improvement_summary": {
+                "key_changes": ["string"],
+                "ats_optimization": "string",
+                "tailoring_to_job": "string"  # if job description provided
+            },
+            "interview_potential_score": "float"  # On a scale of 0 to 100
+        }
+    elif api_type == ApiType.OPENAI:
+        return {
+            "type": "object",
+            "properties": {
+                "analysis": {
+                    "type": "object",
+                    "properties": {
+                        "readability": {"type": "string"},
+                        "tone": {"type": "string"},
+                        "structure": {"type": "string"},
+                        "keywords": {
+                            "type": ["string", "null"],
+                        },
+                    },
+                    "required": ["readability", "tone", "structure", "keywords"],
+                    "additionalProperties": False,
+                },
+                "general_section_review": {"type": "string"},
+                "job_tailored_section_review": {
+                    "type": ["string", "null"],
+                },
+                "improved_resume_content": resume_example_structure_openai,
+                "job_match_score": {
+                    "type": ["number", "null"],
+                },
+                "cover_letter": cover_letter_example_structure_openai,
+                "improvement_summary": {
+                    "type": "object",
+                    "properties": {
+                        "key_changes": {
+                            "type": "array",
+                            "description": "Description of changes and improvements made to resume and cover letter",
+                            "items": {
+                                "type": "string",
+                            }
+                        },
+                        "ats_optimization": {"type": "string"},
+                        "tailoring_to_job": {"type": "string"},
+                    },
+                    "required": ["key_changes", "ats_optimization", "tailoring_to_job"],
+                    "additionalProperties": False,
+                },
+                "interview_potential_score": {"type": "number"},
+            },
+            "required": ["analysis", "general_section_review", "job_tailored_section_review", "improved_resume_content", "job_match_score", "cover_letter", "improvement_summary", "interview_potential_score"],
+            "additionalProperties": False,
+        }
+    raise ValueError(f"Invalid API type: {api_type}")
+
+
+def get_customization_structure(api_type: ApiType, document_type: str) -> Dict:
+    if api_type == ApiType.ANTHROPIC:
+        return {
+            f"customized_{document_type}": json.loads(resume_example_structure if document_type == "resume" else cover_letter_example_structure),
+            "customization_notes": ["List of strings explaining the changes made and any relevant notes or suggestions"],
+            "effectiveness_impact": "float  // Scale from -1 to 1, where -1 is very negative, 0 is neutral, and 1 is very positive"
+        }
+    elif api_type == ApiType.OPENAI:
+        return {
+            "type": "object",
+            "properties": {
+                f"customized_{document_type}": resume_example_structure_openai if document_type == "resume" else cover_letter_example_structure_openai,
+                "customization_notes": {
+                    "type": "array",
+                    "description": "List of strings explaining the changes made and any relevant notes or suggestions",
+                    "items": {
+                        "type": "string",
+                    }
+                },
+                "effectiveness_impact": {"type": "number"}
+            },
+            "required": [f"customized_{document_type}", "customization_notes", "effectiveness_impact"],
+            "additionalProperties": False
+        }
+    raise ValueError(f"Invalid API type: {api_type}")
+
+
+def get_prompt(api_type, document_type, structure, content=None, job_description=None):
+    if api_type == ApiType.OPENAI:
+        content = "Given below"
+    elif api_type == ApiType.ANTHROPIC:
+        content = content
 
     prompt = f"""
-    You are an expert resume writer and career coach with over 20 years of experience helping candidates secure interviews at top companies. Your task is to optimize the provided {doc_type} and create a compelling cover letter that will maximize the applicant's chances of getting an interview.
+        You are an expert resume writer and career coach with over 20 years of experience helping candidates secure interviews at top companies. Your task is to optimize the provided {document_type} and create a compelling cover letter that will maximize the applicant's chances of getting an interview.
 
-    DOCUMENT TYPE: {doc_type}
-    CONTENT: {content}
-    JOB DESCRIPTION: {job_description if job_description else 'Not provided'}
+        DOCUMENT TYPE: {document_type}
+        CONTENT: {content}
+        JOB DESCRIPTION: {job_description if job_description else 'Not provided'}
 
-    Follow these steps to create the best possible resume and cover letter:
+        Follow these steps to create the best possible resume and cover letter:
 
-    1. Resume Optimization:
-       a) Analyze the current resume for strengths and weaknesses.
-       b) Rewrite and restructure the resume to highlight the applicant's most relevant skills and achievements.
-       c) Use powerful action verbs and quantify achievements wherever possible.
-       d) Ensure the resume is ATS-friendly by incorporating relevant keywords from the job description (if provided).
-       e) Tailor the content to the specific job or industry, emphasizing the most relevant experiences and skills.
-       f) Improve the overall readability and visual appeal of the resume.
+        1. Resume Optimization:
+          a) Analyze the current resume for strengths and weaknesses.
+          b) Rewrite and restructure the resume to highlight the applicant's most relevant skills and achievements.
+          c) Use powerful action verbs and quantify achievements wherever possible.
+          d) Ensure the resume is ATS-friendly by incorporating relevant keywords from the job description (if provided).
+          e) Tailor the content to the specific job or industry, emphasizing the most relevant experiences and skills.
+          f) Improve the overall readability and visual appeal of the resume.
 
-    2. Cover Letter Creation:
-       a) Write a compelling, personalized cover letter that complements the resume.
-       b) Address the specific requirements mentioned in the job description (if provided).
-       c) Highlight the applicant's unique value proposition and most relevant achievements.
-       d) Demonstrate enthusiasm for the position and knowledge of the company.
-       e) Keep the tone professional yet engaging, and limit the length to one page.
+        2. Cover Letter Creation:
+          a) Write a compelling, personalized cover letter that complements the resume.
+          b) Address the specific requirements mentioned in the job description (if provided).
+          c) Highlight the applicant's unique value proposition and most relevant achievements.
+          d) Demonstrate enthusiasm for the position and knowledge of the company.
+          e) Keep the tone professional yet engaging, and limit the length to one page.
 
-    3. Overall Improvements:
-       a) Ensure consistency in formatting and language between the resume and cover letter.
-       b) Proofread for any grammatical or spelling errors.
-       c) Optimize the documents for both human readers and ATS systems.
+        3. Overall Improvements:
+          a) Ensure consistency in formatting and language between the resume and cover letter.
+          b) Proofread for any grammatical or spelling errors.
+          c) Optimize the documents for both human readers and ATS systems.
 
-    Return the results in the following JSON format:
-    {{
-        "analysis": {{
-            "readability": string,
-            "tone": string,
-            "structure": string,
-            "keywords": string,  // Only if job description provided
-        }},
-        "general_section_review": {{
-            "section_name": "review"
-        }},
-        "job_tailored_section_review": {{
-            "section_name": "review"
-        }},
-        "improved_resume_content": {{
-            {resume_example_structure}
-        }},
-        "job_match_score": float,  // Only if job description provided
-        "cover_letter": {{
-            {cover_letter_example_structure}
-        }}
-        "improvement_summary": {{
-            "key_changes": [string],
-            "ats_optimization": string,
-            "tailoring_to_job": string  // if job description provided
-        }},
-        "interview_potential_score": float  // On a scale of 0 to 100
-    }}
+        Return the results in the following JSON format:
+        {json.dumps(structure, indent=2)}
 
-    Focus on creating the most impactful and interview-worthy documents possible. Be creative and strategic in your improvements while maintaining honesty and professionalism.
-    """
+        Focus on creating the most impactful and interview-worthy documents possible. Be creative and strategic in your improvements while maintaining honesty and professionalism.
+        """
+    return prompt
 
+
+async def analyze_and_improve_document(doc_type="resume", content=None, job_description=None):
+    # treat bug of incorrect pdf document formating that happens occasionally
+    start_time = time.time()
     result = {}
     try:
+        api_type = ApiType.ANTHROPIC
+        structure = get_structure(api_type)
+        prompt = get_prompt(api_type, doc_type, structure, content, job_description)
         result = await get_anth_chat_response(prompt)
         total = time.time() - start_time
         logger.info(f"Chat Response Time: {total}")
     except ValueError as e:
-        logger.error(f"Failed to get valid response: {e}")
+        logger.error(f"Failed to get valid response from Anthropic. Switched to OpenAI: {e}")
+        api_type = ApiType.OPENAI
+        structure = get_structure(api_type)
+        # make experiences a list of objects not just 3 stipulated objects
+        prompt = get_prompt(api_type, doc_type, structure, content, job_description)
+        result = await get_openai_chat_response(prompt, content, structure)
+        total = time.time() - start_time
+        logger.info(f"Chat Response Time: {total}")
 
     return result
+
+
+def get_customization_prompt(api_type, document_type, customization_request, customization_structure, original_content=None):
+    if api_type == ApiType.OPENAI:
+        original_content = "Given below"
+    elif api_type == ApiType.ANTHROPIC:
+        original_content = json.dumps(original_content) if isinstance(original_content, dict) else original_content
+
+    prompt = f"""
+    As an expert resume writer and career coach, your task is to customize the provided {document_type}
+    based on the user's specific request. Apply the requested changes while maintaining the overall
+    quality and effectiveness of the document.
+
+    DOCUMENT TYPE: {document_type}
+    ORIGINAL CONTENT: {original_content}
+    CUSTOMIZATION REQUEST: {customization_request}
+
+    Guidelines for customization:
+    1. Carefully interpret the user's request and apply changes accordingly.
+    2. Maintain the professional tone and structure of the document.
+    3. Ensure any additions or changes align with best practices for {document_type}s.
+    4. Preserve the document's ATS-friendly qualities if applicable.
+    5. If the request might negatively impact the document's effectiveness, provide a brief explanation and suggestion.
+
+    Return the customized document in the following format:
+    {json.dumps(customization_structure, indent=2)}
+    """
+    return prompt
 
 
 async def anth_customize_document(
@@ -918,37 +1238,11 @@ async def anth_customize_document(
         Optional[Dict[str, Union[Dict, List[str], float]]]: Customized document info or None if failed
     """
 
-    prompt = f"""
-    As an expert resume writer and career coach, your task is to customize the provided {document_type}
-    based on the user's specific request. Apply the requested changes while maintaining the overall
-    quality and effectiveness of the document.
-
-    DOCUMENT TYPE: {document_type}
-    ORIGINAL CONTENT: {json.dumps(original_content) if isinstance(original_content, dict) else original_content}
-    CUSTOMIZATION REQUEST: {customization_request}
-
-    Guidelines for customization:
-    1. Carefully interpret the user's request and apply changes accordingly.
-    2. Maintain the professional tone and structure of the document.
-    3. Ensure any additions or changes align with best practices for {document_type}s.
-    4. Preserve the document's ATS-friendly qualities if applicable.
-    5. If the request might negatively impact the document's effectiveness, provide a brief explanation and suggestion.
-
-    Return the customized document in the following format:
-
-    {{
-        "customized_{document_type}": {{
-            {resume_example_structure if document_type == "resume" else cover_letter_example_structure}
-        }},
-        "customization_notes": [
-            // List of strings explaining the changes made and any relevant notes or suggestions
-        ],
-        "effectiveness_impact": float  // Scale from -1 to 1, where -1 is very negative, 0 is neutral, and 1 is very positive
-    }}
-    """
-
     try:
-        result = await get_anth_chat_response(prompt)
+        api_type = ApiType.ANTHROPIC
+        customization_structure = get_customization_structure(api_type, document_type)
+        customization_prompt = get_customization_prompt(api_type, document_type, customization_request, customization_structure, original_content)
+        result = await get_anth_chat_response(customization_prompt)
         prepared_result = {
             "customized_document": result.get(f"customized_{document_type}", {}),
             "customization_notes": result.get("customization_notes", []),
@@ -958,11 +1252,27 @@ async def anth_customize_document(
                 "customization_request": customization_request
             }
         }
-
         return prepared_result
     except Exception as e:
         logger.error(f"Failed to customize document: {e}")
-        return None
+        try:
+            api_type = ApiType.OPENAI
+            customization_structure = get_customization_structure(api_type, document_type)
+            customization_prompt = get_customization_prompt(api_type, document_type, customization_request, customization_structure, original_content)
+            result = await get_openai_chat_response(customization_prompt, original_content, customization_structure)
+            prepared_result = {
+                "customized_document": result.get(f"customized_{document_type}", {}),
+                "customization_notes": result.get("customization_notes", []),
+                "effectiveness_impact": result.get("effectiveness_impact", 0),
+                "metadata": {
+                    "document_type": document_type,
+                    "customization_request": customization_request
+                }
+            }
+            return prepared_result
+        except Exception as e:
+            logger.error(f"Failed to customize document with OpenAI: {e}")
+            return None
 
 
 async def get_anth_doc_urls(resume_content: Optional[str] = None, job_post_content: Optional[str] = None) -> Dict[str, Any]:
@@ -971,8 +1281,19 @@ async def get_anth_doc_urls(resume_content: Optional[str] = None, job_post_conte
     is_optimized = bool(job_post_content)
     result = await analyze_and_improve_document(content=resume_content, job_description=job_post_content)
 
-    resume_content = result["improved_resume_content"]
-    cover_letter_content = result["cover_letter"]
+    if not result.get("improved_resume_content"):
+        logger.warning("improved_resume_content missing from result")
+    if not result.get("cover_letter"):
+        logger.warning("cover_letter missing from result")
+    if not result.get("improvement_summary"):
+        logger.warning("improvement_summary missing from result")
+    if is_optimized and "job_match_score" not in result:
+        logger.warning("job_match_score missing from result for optimized document")
+    if "interview_potential_score" not in result:
+        logger.warning("interview_potential_score missing from result")
+
+    resume_content = result.get("improved_resume_content", {})
+    cover_letter_content = result.get("cover_letter", {})
 
     # Generate and upload documents
     resume_pdf, resume_docx = await generate_documents("resume", resume_content, is_optimized)
@@ -983,6 +1304,8 @@ async def get_anth_doc_urls(resume_content: Optional[str] = None, job_post_conte
 
     duration = time.time() - start_time
     logger.info(f"ENTIRE PROCESS TOOK {duration:.2f} seconds")
+
+    improvement_summary = result.get("improvement_summary", {})
 
     return {
         "documents": {
@@ -997,13 +1320,13 @@ async def get_anth_doc_urls(resume_content: Optional[str] = None, job_post_conte
         },
         "insights": {
             "improvement_summary": {
-                "key_changes": result["improvement_summary"]["key_changes"],
-                "ats_optimization": result["improvement_summary"]["ats_optimization"],
-                "tailoring_to_job": result["improvement_summary"]["tailoring_to_job"]
+                "key_changes": improvement_summary.get("key_changes", []),
+                "ats_optimization": improvement_summary.get("ats_optimization", ""),
+                "tailoring_to_job": improvement_summary.get("tailoring_to_job", "N/A" if not is_optimized else "")
             },
             "scores": {
-                "job_match": result["job_match_score"],
-                "interview_potential": result["interview_potential_score"]
+                "job_match": result.get("job_match_score", 0 if is_optimized else None),
+                "interview_potential": result.get("interview_potential_score", 0)
             }
         },
         "metadata": {

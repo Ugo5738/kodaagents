@@ -57,6 +57,7 @@ google_auth_urls = [
 payment_urls = [
     path('payment-status/', views.UserPaymentStatusView.as_view(), name='user_payment_status'),
     path('update-download/', views.UpdateDownloadView.as_view(), name='update_usage'),
+    path('reset-usage-counts/', views.ResetUsageCountsView.as_view(), name='reset_usage_counts'),
 ]
 
 password_urls = [
