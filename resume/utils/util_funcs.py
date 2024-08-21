@@ -1205,10 +1205,7 @@ async def analyze_and_improve_document(doc_type="resume", content=None, job_desc
         logger.info(f"Chat Response Time: {total}")
 
     except anthropic.InternalServerError as e:
-        if e.error.get('type') == 'overloaded_error':
-            logger.error("Anthropic API is overloaded. Switching to OpenAI.")
-        else:
-            logger.error("Anthropic API internal server error. Switching to OpenAI.")
+        logger.error("Anthropic API internal server error. Switching to OpenAI.")
 
         api_type = ApiType.OPENAI
         structure = get_structure(api_type)
