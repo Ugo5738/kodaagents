@@ -1299,11 +1299,11 @@ async def anth_customize_document(
         customization_prompt = get_customization_prompt(api_type, document_type, customization_request, customization_structure, original_content)
         result = await get_anth_chat_response(customization_prompt)
         if document_type == "resume":
-            experiences_list = result["improved_resume_content"]["experiences"]
+            experiences_list = result["customized_resume"]["experiences"]
             experiences_dict = {
                 f"experience_{i+1}": experience for i, experience in enumerate(experiences_list)
             }
-            result["improved_resume_content"]["experiences"] = experiences_dict
+            result["customized_resume"]["experiences"] = experiences_dict
         prepared_result = {
             "customized_document": result.get(f"customized_{document_type}", {}),
             "customization_notes": result.get("customization_notes", []),
