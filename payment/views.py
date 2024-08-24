@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 from datetime import datetime
+from datetime import timezone as datetime_timezone
 
 import stripe
 from dateutil.relativedelta import relativedelta
@@ -416,15 +417,6 @@ class StripeWebhookView(APIView):
                     user.save()
                     logger.info(f"User {user.email} tier updated to {user.tier}")
 
-                    # Update subscription status
-                    subscription = Subscription.objects.filter(user=user).order_by('-id').first()
-                    if subscription:
-                        subscription.status = 'active'
-                        subscription.save()
-                        logger.info(f"Subscription {subscription.id} activated for user {user.email}")
-                    else:
-                        logger.error(f"No subscription found for user {user.email}")
-
                 # Double-check the tier update
                 user.refresh_from_db()
                 if user.tier != expected_tier:
@@ -449,21 +441,23 @@ class StripeWebhookView(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         # Convert Unix timestamps to datetime objects
-        current_period_start = datetime.fromtimestamp(subscription['current_period_start'])
-        current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
+        current_period_start = datetime.fromtimestamp(subscription['current_period_start'], tz=datetime_timezone.utc)
+        current_period_end = datetime.fromtimestamp(subscription['current_period_end'], tz=datetime_timezone.utc)
 
         tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
 
         try:
             with transaction.atomic():
-                Subscription.objects.create(
+                Subscription.objects.update_or_create(
                     user=user,
-                    stripe_subscription_id=subscription['id'],
-                    status=subscription['status'],
-                    current_period_start=current_period_start,
-                    current_period_end=current_period_end,
-                    provider='stripe',
-                    tier=tier
+                    defaults={
+                        'stripe_subscription_id': subscription['id'],
+                        'status': subscription['status'],
+                        'current_period_start': current_period_start,
+                        'current_period_end': current_period_end,
+                        'provider': 'stripe',
+                        'tier': tier
+                    }
                 )
 
                 user.tier = tier
@@ -491,8 +485,8 @@ class StripeWebhookView(APIView):
         sub.current_period_start = current_period_start
         sub.current_period_end = current_period_end
         sub.cancel_at_period_end = cancel_at_period_end
-        if subscription['status'] == 'canceled':
-            sub.canceled_at = datetime.fromtimestamp(subscription['canceled_at'])
+        if subscription['status'] == 'canceled' and subscription.get('canceled_at'):
+            sub.canceled_at = datetime.fromtimestamp(subscription['canceled_at'], tz=datetime_timezone.utc)
 
         # Update tier if it has changed
         new_tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])

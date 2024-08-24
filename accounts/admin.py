@@ -35,19 +35,19 @@ class UserAdmin(admin.ModelAdmin):
 
     list_display = ('email', 'email_verified', 'first_name', 'last_name', 'tier_display', 'download_count', 'creation_count', 'customization_count', 'total_usage', 'date_joined', 'last_login')
     list_filter = ('tier', 'email_verified', 'is_active', 'is_staff', 'date_joined', 'last_login')
-    search_fields = ('email', 'username', 'first_name', 'last_name')
+    search_fields = ('email', 'username', 'first_name', 'last_name', 'stripe_customer_id')
     readonly_fields = ('date_joined', 'last_login', 'total_usage', 'usage_chart')
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'date_of_birth', 'profile_picture')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
-        ('Tier & Usage', {'fields': ('tier', 'download_count', 'creation_count', 'customization_count', 'total_usage', 'usage_chart')}),
+        ('Tier & Usage', {'fields': ('tier', 'stripe_customer_id', 'download_count', 'creation_count', 'customization_count', 'total_usage', 'usage_chart')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'password1', 'password2', 'tier'),
+            'fields': ('email', 'password1', 'password2', 'tier', 'stripe_customer_id'),
         }),
     )
     ordering = ('-date_joined',)
