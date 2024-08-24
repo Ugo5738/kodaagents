@@ -1046,7 +1046,7 @@ def get_structure(api_type: ApiType) -> Dict:
                 "readability": "string",
                 "tone": "string",
                 "structure": "string",
-                "keywords": "string",  # Only if job description provided
+                "keywords": "string (if job description provided)",  # Only if job description provided
             },
             "general_section_review": {
                 "section_name": "review"
@@ -1055,14 +1055,14 @@ def get_structure(api_type: ApiType) -> Dict:
                 "section_name": "review"
             },
             "improved_resume_content": resume_example_structure,
-            "job_match_score": "float",  # Only if job description provided
+            "job_match_score": "float (if job description provided)",  # Only if job description provided
             "cover_letter": cover_letter_example_structure,
             "improvement_summary": {
                 "key_changes": ["string"],
                 "ats_optimization": "string",
-                "tailoring_to_job": "string"  # if job description provided
+                "tailoring_to_job": "string (if job description provided)"  # if job description provided
             },
-            "interview_potential_score": "float"  # On a scale of 0 to 100
+            "interview_potential_score": "float (On a scale of 0 to 100)"  # On a scale of 0 to 100
         }
     elif api_type == ApiType.OPENAI:
         return {

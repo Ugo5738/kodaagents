@@ -146,11 +146,26 @@ class InitiatePaymentView(APIView):
                     provider='stripe',
                     tier=tier
                 )
+
+                # Create a Subscription object
+                Subscription.objects.create(
+                    user=request.user,
+                    stripe_subscription_id=subscription.id,
+                    status=subscription.status,
+                    current_period_start=datetime.fromtimestamp(subscription.current_period_start),
+                    current_period_end=datetime.fromtimestamp(subscription.current_period_end),
+                    provider='stripe',
+                    tier=tier
+                )
+
+                logger.info(f"Subscription initiated for user {request.user.email}, tier: {tier.name}, subscription ID: {subscription.id}")
+
                 return Response({
                     'client_secret': intent.client_secret,
                     'subscription_id': subscription.id,
                 })
             else:
+                logger.error(f"Failed to create subscription for user {request.user.email}")
                 return Response({'error': 'Failed to create subscription'}, status=400)
         except stripe.error.StripeError as e:
             logger.error(f"Stripe API error: {str(e)}")
@@ -388,6 +403,33 @@ class StripeWebhookView(APIView):
 
                 payment.save()
 
+                # Update user's tier
+                user = payment.user
+                expected_tier = payment.tier
+
+                logger.info(f"Updating tier for user {user.email}. Current tier: {user.tier}, Expected tier: {expected_tier}")
+
+                if expected_tier is None:
+                    logger.error(f"Expected tier is None for payment {payment.id}. Unable to update user tier.")
+                else:
+                    user.tier = expected_tier
+                    user.save()
+                    logger.info(f"User {user.email} tier updated to {user.tier}")
+
+                    # Update subscription status
+                    subscription = Subscription.objects.filter(user=user).order_by('-id').first()
+                    if subscription:
+                        subscription.status = 'active'
+                        subscription.save()
+                        logger.info(f"Subscription {subscription.id} activated for user {user.email}")
+                    else:
+                        logger.error(f"No subscription found for user {user.email}")
+
+                # Double-check the tier update
+                user.refresh_from_db()
+                if user.tier != expected_tier:
+                    logger.error(f"Tier update failed for user {user.email}. Current tier: {user.tier}, Expected tier: {expected_tier}")
+
             # Send payment notification email
             send_payment_confirmation_email(payment)
             send_payment_notification_email(payment)
@@ -398,6 +440,7 @@ class StripeWebhookView(APIView):
         except Exception as e:
             logger.error(f"Error processing successful payment: {str(e)}")
             raise  # Re-raise the exception to be caught by the outer try-except block
+
 
     def handle_subscription_created(self, subscription, webhook_log):
         user = User.objects.filter(stripe_customer_id=subscription['customer']).first()
@@ -411,22 +454,27 @@ class StripeWebhookView(APIView):
 
         tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
 
-        with transaction.atomic():
-            Subscription.objects.create(
-                user=user,
-                stripe_subscription_id=subscription['id'],
-                status=subscription['status'],
-                current_period_start=current_period_start,
-                current_period_end=current_period_end,
-                provider='stripe',
-                tier=tier
-            )
+        try:
+            with transaction.atomic():
+                Subscription.objects.create(
+                    user=user,
+                    stripe_subscription_id=subscription['id'],
+                    status=subscription['status'],
+                    current_period_start=current_period_start,
+                    current_period_end=current_period_end,
+                    provider='stripe',
+                    tier=tier
+                )
 
-            user.tier = tier
-            user.save()
+                user.tier = tier
+                user.save()
 
-        send_subscription_status_email(user.email, 'created')
-        return Response(status=status.HTTP_200_OK)
+            send_subscription_status_email(user.email, 'created')
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+          logger.error(f"Error creating subscription for user {user.email}: {str(e)}")
+          return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
     def handle_subscription_updated(self, subscription, webhook_log):
         sub = Subscription.objects.filter(stripe_subscription_id=subscription['id']).first()
@@ -452,15 +500,19 @@ class StripeWebhookView(APIView):
             sub.tier = new_tier
             sub.user.tier = new_tier
             sub.user.save()
+            logger.info(f"User {sub.user.email} tier updated to {new_tier}")
 
         sub.save()
 
-        if subscription['status'] == 'past_due':
+        if subscription['status'] == 'active':
+            logger.info(f"Subscription {sub.id} activated for user {sub.user.email}")
+        elif subscription['status'] == 'past_due':
             send_subscription_status_email(sub.user.email, 'payment_failed')
         elif subscription['status'] == 'canceled':
             send_subscription_status_email(sub.user.email, 'cancelled')
 
         return Response(status=status.HTTP_200_OK)
+
 
     def handle_subscription_deleted(self, subscription, webhook_log):
         sub = Subscription.objects.filter(stripe_subscription_id=subscription['id']).first()
@@ -553,6 +605,7 @@ class StripeWebhookView(APIView):
         # logger.info(f"Customer deleted: {customer['id']}")
         # return Response(status=status.HTTP_200_OK)
         pass
+
 
 @permission_classes([AllowAny])
 class PaystackWebhookView(APIView):
