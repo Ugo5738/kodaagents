@@ -4,7 +4,7 @@ from django.db.models import Sum
 from django.urls import reverse
 from django.utils.html import format_html
 
-from accounts.models import GoogleToken, OrganizationProfile, User, UserTier
+from accounts.models import GoogleToken, LoginHistory, OrganizationProfile, User, UserTier
 
 
 # Inline admin descriptor for OrganizationProfile
@@ -14,7 +14,6 @@ class OrganizationProfileInline(admin.StackedInline):
     verbose_name_plural = "Organization Profile"
 
 
-@admin.register(UserTier)
 class UserTierAdmin(admin.ModelAdmin):
     list_display = ('name', 'download_limit', 'creation_limit', 'customization_limit', 'price', 'user_count')
     list_editable = ('download_limit', 'creation_limit', 'customization_limit', 'price')
@@ -130,6 +129,26 @@ class GoogleTokenAdmin(admin.ModelAdmin):
     is_expired.boolean = True
     is_expired.short_description = 'Expired'
 
+
+class LoginHistoryAdmin(admin.ModelAdmin):
+    list_display = ('user', 'login_time', 'logout_time', 'ip_address', 'get_session_duration')
+    list_filter = ('user', 'login_time')
+    search_fields = ('user__username', 'ip_address')
+    readonly_fields = ('login_time', 'logout_time', 'ip_address', 'user_agent', 'get_session_duration')
+
+    def get_session_duration(self, obj):
+        duration = obj.session_duration
+        if duration:
+            seconds = duration.total_seconds()
+            hours, remainder = divmod(seconds, 3600)
+            minutes, _ = divmod(remainder, 60)
+            return f"{int(hours)} hours, {int(minutes)} minutes"
+        return "Session ongoing"
+    get_session_duration.short_description = 'Session Duration'
+
+
+admin.site.register(UserTier, UserTierAdmin)
 admin.site.register(User, UserAdmin)
 admin.site.register(OrganizationProfile, OrganizationProfileAdmin)
 admin.site.register(GoogleToken, GoogleTokenAdmin)
+admin.site.register(LoginHistory, LoginHistoryAdmin)

@@ -1,5 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from accounts import models
 
@@ -29,6 +31,37 @@ class RegisterSerializer(serializers.ModelSerializer):
         if country:
             models.OrganizationProfile.objects.create(user=user, country=country)
         return user
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        # Update last_login time
+        self.user.last_login = timezone.now()
+        self.user.save(update_fields=['last_login'])
+
+        # Record login history
+        models.LoginHistory.objects.create(
+            user=self.user,
+            ip_address=self.context['request'].META.get('REMOTE_ADDR'),
+            user_agent=self.context['request'].META.get('HTTP_USER_AGENT')
+        )
+
+        return data
+
+
+class LoginHistorySerializer(serializers.ModelSerializer):
+    session_duration = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.LoginHistory
+        fields = ['login_time', 'logout_time', 'ip_address', 'user_agent', 'session_duration']
+
+    def get_session_duration(self, obj):
+        if obj.session_duration:
+            return str(obj.session_duration)
+        return None
 
 
 class UserTierSerializer(serializers.ModelSerializer):

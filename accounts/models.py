@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.utils import timezone
@@ -178,3 +179,24 @@ class GoogleToken(models.Model):
 
     def get_scopes(self):
         return self.scopes.split(',')
+
+
+class LoginHistory(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='login_history')
+    login_time = models.DateTimeField(default=timezone.now)
+    logout_time = models.DateTimeField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+
+    @property
+    def session_duration(self):
+        if self.logout_time:
+            return self.logout_time - self.login_time
+        return None
+
+    def __str__(self):
+        return f"{self.user.username} - {self.login_time}"
+
+    class Meta:
+        ordering = ['-login_time']
+        verbose_name_plural = "Login Histories"

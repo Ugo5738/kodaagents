@@ -3,7 +3,7 @@ from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
 from django.conf import settings
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, update_session_auth_hash
 from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -24,11 +24,17 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from accounts import serializers
-from accounts.models import GoogleToken, User, UserTier
+from accounts.models import GoogleToken, LoginHistory, User, UserTier
 from accounts.pagination import CustomPageNumberPagination
-from accounts.serializers import ChangePasswordSerializer, RegisterSerializer, UserSerializer
+from accounts.serializers import (
+    ChangePasswordSerializer,
+    CustomTokenObtainPairSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 from helpers.email_utils import send_verification_email
 from koda.config.logging_config import configure_logger
 
@@ -143,6 +149,10 @@ class ResendVerificationEmailView(APIView):
             return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+
 class GoogleAuthView(APIView):
     def post(self, request):
         logger.info("Received Google Auth request")
@@ -160,15 +170,11 @@ class GoogleAuthView(APIView):
             user = User.objects.filter(email=email).first()
 
             if user is None:
-                # Create a new user
                 logger.info(f"Creating new user for email: {email}")
-
-                # Fetch the "free" tier
                 tier = UserTier.objects.get(name=UserTier.FREE)
-
                 user = User.objects.create_user(
                     email=email,
-                    username=name.split()[0] if name else '',  # You might want to generate a unique username
+                    username=name.split()[0] if name else '',  # We might want to generate a unique username
                     first_name=name.split()[0] if name else '',
                     last_name=' '.join(name.split()[1:]) if name else '',
                     email_verified=True,
@@ -184,6 +190,20 @@ class GoogleAuthView(APIView):
                     tier = UserTier.objects.get(name=UserTier.FREE)
                     user.tier = tier
                     user.save()
+
+            # Update last_login time
+            user.last_login = timezone.now()
+            user.save(update_fields=['last_login'])
+
+            # Record login history
+            LoginHistory.objects.create(
+                user=user,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                user_agent=request.META.get('HTTP_USER_AGENT')
+            )
+
+            # Update the session hash
+            update_session_auth_hash(request, user)
 
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
@@ -202,9 +222,6 @@ class GoogleAuthView(APIView):
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}")
             return Response({'error': 'An unexpected error occurred', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        # except ValueError:
-        #     # Invalid token
-        #     return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserTierViewSet(viewsets.ModelViewSet):
@@ -306,6 +323,13 @@ class LogoutView(APIView):
 
             token = RefreshToken(refresh_token)
             token.blacklist()
+
+            # Record logout time
+            last_login = LoginHistory.objects.filter(user=request.user, logout_time__isnull=True).first()
+            if last_login:
+                last_login.logout_time = timezone.now()
+                last_login.save()
+
             return Response(status=status.HTTP_205_RESET_CONTENT)
         except TokenError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
