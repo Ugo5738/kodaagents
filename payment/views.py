@@ -6,6 +6,7 @@ from datetime import timezone as datetime_timezone
 import stripe
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -444,7 +445,10 @@ class StripeWebhookView(APIView):
         current_period_start = datetime.fromtimestamp(subscription['current_period_start'], tz=datetime_timezone.utc)
         current_period_end = datetime.fromtimestamp(subscription['current_period_end'], tz=datetime_timezone.utc)
 
-        tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
+        price_id = subscription['items']['data'][0]['price']['id']
+        new_tier = self.get_tier_from_stripe_price(price_id)
+
+        logger.info(f"Before update: User {user.email} tier: {user.tier}")
 
         try:
             with transaction.atomic():
@@ -456,18 +460,29 @@ class StripeWebhookView(APIView):
                         'current_period_start': current_period_start,
                         'current_period_end': current_period_end,
                         'provider': 'stripe',
-                        'tier': tier
+                        'tier': new_tier
                     }
                 )
 
-                user.tier = tier
+                user.tier = new_tier
                 user.save()
+
+                # Clear cache for this user
+                cache.delete(f'user_{user.id}_tier')
+
+            # Refresh user from database
+            user.refresh_from_db()
+            logger.info(f"After update: User {user.email} tier: {user.tier}")
+
+            # Double-check by querying the database directly
+            updated_user = User.objects.get(id=user.id)
+            logger.info(f"User {updated_user.email} tier after direct query: {updated_user.tier}")
 
             send_subscription_status_email(user.email, 'created')
             return Response(status=status.HTTP_200_OK)
         except Exception as e:
-          logger.error(f"Error creating subscription for user {user.email}: {str(e)}")
-          return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error creating subscription for user {user.email}: {str(e)}")
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
     def handle_subscription_updated(self, subscription, webhook_log):
@@ -481,31 +496,48 @@ class StripeWebhookView(APIView):
         current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
         cancel_at_period_end = subscription.get('cancel_at_period_end', False)
 
-        sub.status = subscription['status']
-        sub.current_period_start = current_period_start
-        sub.current_period_end = current_period_end
-        sub.cancel_at_period_end = cancel_at_period_end
-        if subscription['status'] == 'canceled' and subscription.get('canceled_at'):
-            sub.canceled_at = datetime.fromtimestamp(subscription['canceled_at'], tz=datetime_timezone.utc)
+        price_id = subscription['items']['data'][0]['price']['id']
+        new_tier = self.get_tier_from_stripe_price(price_id)
 
-        # Update tier if it has changed
-        new_tier = self.get_tier_from_stripe_price(subscription['items']['data'][0]['price']['id'])
-        if new_tier != sub.tier:
-            sub.tier = new_tier
-            sub.user.tier = new_tier
-            sub.user.save()
-            logger.info(f"User {sub.user.email} tier updated to {new_tier}")
+        logger.info(f"Before update: User {sub.user.email} tier: {sub.user.tier}")
 
-        sub.save()
+        try:
+            with transaction.atomic():
+                sub.status = subscription['status']
+                sub.current_period_start = current_period_start
+                sub.current_period_end = current_period_end
+                sub.cancel_at_period_end = cancel_at_period_end
+                if subscription['status'] == 'canceled' and subscription.get('canceled_at'):
+                    sub.canceled_at = datetime.fromtimestamp(subscription['canceled_at'], tz=datetime_timezone.utc)
 
-        if subscription['status'] == 'active':
-            logger.info(f"Subscription {sub.id} activated for user {sub.user.email}")
-        elif subscription['status'] == 'past_due':
-            send_subscription_status_email(sub.user.email, 'payment_failed')
-        elif subscription['status'] == 'canceled':
-            send_subscription_status_email(sub.user.email, 'cancelled')
+                sub.tier = new_tier
+                sub.save()
 
-        return Response(status=status.HTTP_200_OK)
+                sub.user.tier = new_tier
+                sub.user.save()
+
+                # Clear cache for this user
+                cache.delete(f'user_{sub.user.id}_tier')
+
+            # Refresh user from database
+            sub.user.refresh_from_db()
+            logger.info(f"After update: User {sub.user.email} tier: {sub.user.tier}")
+
+            # Double-check by querying the database directly
+            updated_user = User.objects.get(id=sub.user.id)
+            logger.info(f"User {updated_user.email} tier after direct query: {updated_user.tier}")
+
+            if subscription['status'] == 'active':
+                logger.info(f"Subscription {sub.id} activated for user {sub.user.email}")
+            elif subscription['status'] == 'past_due':
+                send_subscription_status_email(sub.user.email, 'payment_failed')
+            elif subscription['status'] == 'canceled':
+                send_subscription_status_email(sub.user.email, 'cancelled')
+
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error updating subscription for user {sub.user.email}: {str(e)}")
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
     def handle_subscription_deleted(self, subscription, webhook_log):
@@ -523,6 +555,7 @@ class StripeWebhookView(APIView):
 
         send_subscription_status_email(user.email, 'cancelled')
         return Response(status=status.HTTP_200_OK)
+
 
     def handle_invoice_paid(self, invoice, webhook_log):
         subscription_id = invoice['subscription']
@@ -564,8 +597,10 @@ class StripeWebhookView(APIView):
             settings.STRIPE_PRICE_IDS['Professional']: UserTier.PROFESSIONAL,
             settings.STRIPE_PRICE_IDS['Premium']: UserTier.PREMIUM,
         }
-        tier_name = price_to_tier.get(price_id, UserTier.ESSENTIAL)
-        return UserTier.objects.get(name=tier_name)
+        tier_name = price_to_tier.get(price_id, UserTier.FREE)
+        tier = UserTier.objects.get(name=tier_name)
+        logger.info(f"Retrieved tier: {tier.name} for price_id: {price_id}")
+        return tier
 
     def handle_customer_created(self, customer, webhook_log):
         # # Logic to handle customer creation
