@@ -31,6 +31,20 @@ from payment.stripe_api import StripeAPI
 
 logger = configure_logger(__name__)
 
+
+def get_tier_from_stripe_price(price_id):
+    # Map Stripe price IDs to UserTier instances
+    price_to_tier = {
+        settings.STRIPE_PRICE_IDS['Essential']: UserTier.ESSENTIAL,
+        settings.STRIPE_PRICE_IDS['Professional']: UserTier.PROFESSIONAL,
+        settings.STRIPE_PRICE_IDS['Premium']: UserTier.PREMIUM,
+    }
+    tier_name = price_to_tier.get(price_id, UserTier.FREE)
+    tier = UserTier.objects.get(name=tier_name)
+    logger.info(f"Retrieved tier: {tier.name} for price_id: {price_id}")
+    return tier
+
+
 class InitiatePaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -39,10 +53,9 @@ class InitiatePaymentView(APIView):
         tier_name = data.get('tier')
         currency = data.get('currency', 'usd')
         provider = data.get('provider', 'stripe')
-        payment_type = data.get('payment_type', 'one_time')  # 'one_time' or 'subscription'
+        payment_type = data.get('payment_type', 'subscription')  # 'one_time' or 'subscription'
 
         tier = get_object_or_404(UserTier, name=tier_name)
-
         amount = float(tier.price)
 
         if payment_type not in ['one_time', 'subscription']:
@@ -54,6 +67,108 @@ class InitiatePaymentView(APIView):
             return self.initiate_stripe_payment(request, amount, currency, payment_type, tier)
         else:
             return JsonResponse({'error': 'Invalid payment provider'}, status=400)
+
+    def initiate_stripe_payment(self, request, amount, currency, payment_type, tier):
+        stripe_api = StripeAPI()
+
+        if payment_type == 'subscription':
+            return self.initiate_stripe_subscription(request, tier)
+        else:
+            intent = stripe_api.create_payment_intent(amount, request.user.email, currency)
+
+            if intent:
+                Payment.objects.create(
+                    user=request.user,
+                    amount=tier.price,
+                    currency=currency,
+                    reference=intent.id,
+                    stripe_payment_intent_id=intent.id,
+                    provider='stripe',
+                    tier=tier
+                )
+                return JsonResponse({
+                    'client_secret': intent.client_secret,
+                    'publishable_key': settings.STRIPE_PUBLISHABLE_KEY,
+                })
+            else:
+                return JsonResponse({'error': 'Failed to create payment intent'}, status=500)
+
+    def initiate_stripe_subscription(self, request, tier):
+        try:
+            # Ensure the user has a Stripe customer ID
+            customer = self.get_or_create_stripe_customer(request.user)
+
+            # Create a Stripe Subscription
+            subscription = stripe.Subscription.create(
+                customer=customer.id,
+                items=[{'price': self.get_stripe_price_id(tier)}],
+                payment_behavior='default_incomplete',
+                expand=['latest_invoice.payment_intent'],
+            )
+
+            intent = subscription.latest_invoice.payment_intent
+            if intent:
+                Payment.objects.create(
+                    user=request.user,
+                    amount=tier.price,  # Convert cents to dollars
+                    currency=intent.currency.upper(),
+                    reference=intent.id,
+                    stripe_payment_intent_id=intent.id,
+                    status="pending",
+                    provider='stripe',
+                    tier=tier
+                )
+
+                # Create a Subscription object
+                Subscription.objects.create(
+                    user=request.user,
+                    stripe_subscription_id=subscription.id,
+                    status=subscription.status,
+                    current_period_start=datetime.fromtimestamp(subscription.current_period_start),
+                    current_period_end=datetime.fromtimestamp(subscription.current_period_end),
+                    provider='stripe',
+                    tier=tier
+                )
+
+                logger.info(f"Subscription initiated for user {request.user.email}, tier: {tier.name}, subscription ID: {subscription.id}")
+                return Response({
+                    'client_secret': intent.client_secret,
+                    'subscription_id': subscription.id,
+                })
+            else:
+                logger.error(f"Failed to create subscription for user {request.user.email}")
+                return Response({'error': 'Failed to create subscription'}, status=400)
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe API error: {str(e)}")
+            return Response({'error': str(e)}, status=400)
+
+    def get_stripe_price_id(self, tier):
+        price_ids = {
+            UserTier.ESSENTIAL: settings.STRIPE_PRICE_IDS['Essential'],
+            UserTier.PROFESSIONAL: settings.STRIPE_PRICE_IDS['Professional'],
+            UserTier.PREMIUM: settings.STRIPE_PRICE_IDS['Premium'],
+        }
+        return price_ids.get(tier.name)
+
+    def get_or_create_stripe_customer(self, user):
+        if not user.stripe_customer_id:
+            try:
+                customer = stripe.Customer.create(email=user.email)
+                user.stripe_customer_id = customer.id
+                user.save()
+                logger.info(f"Created Stripe customer for user {user.email}: {customer.id}")
+            except stripe.error.StripeError as e:
+                logger.error(f"Failed to create Stripe customer for user {user.email}: {str(e)}")
+                raise
+        else:
+            try:
+                customer = stripe.Customer.retrieve(user.stripe_customer_id)
+                logger.info(f"Retrieved existing Stripe customer for user {user.email}: {customer.id}")
+            except stripe.error.StripeError as e:
+                logger.error(f"Failed to retrieve Stripe customer for user {user.email}: {str(e)}")
+                raise
+
+        return customer
 
     def initiate_paystack_payment(self, request, amount, currency, payment_type, tier):
         paystack = PaystackAPI()
@@ -95,91 +210,29 @@ class InitiatePaymentView(APIView):
             else:
                 return JsonResponse({'error': 'Failed to initialize transaction'}, status=500)
 
-    def initiate_stripe_payment(self, request, amount, currency, payment_type, tier):
-        stripe_api = StripeAPI()
 
-        if payment_type == 'subscription':
-            return self.initiate_stripe_subscription(request, tier)
-        else:
-            intent = stripe_api.create_payment_intent(amount, request.user.email, currency)
+class SubscriptionDetailsView(APIView):
+    permission_classes = [IsAuthenticated]
 
-            if intent:
-                Payment.objects.create(
-                    user=request.user,
-                    amount=tier.price,
-                    currency=currency,
-                    reference=intent.id,
-                    stripe_payment_intent_id=intent.id,
-                    provider='stripe',
-                    tier=tier
-                )
-                return JsonResponse({
-                    'client_secret': intent.client_secret,
-                    'publishable_key': settings.STRIPE_PUBLISHABLE_KEY,
-                })
-            else:
-                return JsonResponse({'error': 'Failed to create payment intent'}, status=500)
+    def get(self, request):
+        tiers = UserTier.objects.all().order_by('price')
+        tier_data = []
+        for tier in tiers:
+            tier_data.append({
+                'name': tier.name,
+                'price': float(tier.price),
+                'interval': self.get_interval(tier.name),
+            })
 
-    def initiate_stripe_subscription(self, request, tier):
-        try:
-            # Ensure the user has a Stripe customer ID
-            if not request.user.stripe_customer_id:
-                customer = stripe.Customer.create(email=request.user.email)
-                request.user.stripe_customer_id = customer.id
-                request.user.save()
+        return Response(tier_data)
 
-            # Create a Stripe Subscription
-            subscription = stripe.Subscription.create(
-                customer=request.user.stripe_customer_id,
-                items=[{'price': self.get_stripe_price_id(tier)}],
-                payment_behavior='default_incomplete',
-                expand=['latest_invoice.payment_intent'],
-            )
-
-            intent = subscription.latest_invoice.payment_intent
-            if intent:
-                Payment.objects.create(
-                    user=request.user,
-                    amount=tier.price,  # Convert cents to dollars
-                    currency=intent.currency.upper(),
-                    reference=intent.id,
-                    stripe_payment_intent_id=intent.id,
-                    status="pending",
-                    provider='stripe',
-                    tier=tier
-                )
-
-                # Create a Subscription object
-                Subscription.objects.create(
-                    user=request.user,
-                    stripe_subscription_id=subscription.id,
-                    status=subscription.status,
-                    current_period_start=datetime.fromtimestamp(subscription.current_period_start),
-                    current_period_end=datetime.fromtimestamp(subscription.current_period_end),
-                    provider='stripe',
-                    tier=tier
-                )
-
-                logger.info(f"Subscription initiated for user {request.user.email}, tier: {tier.name}, subscription ID: {subscription.id}")
-
-                return Response({
-                    'client_secret': intent.client_secret,
-                    'subscription_id': subscription.id,
-                })
-            else:
-                logger.error(f"Failed to create subscription for user {request.user.email}")
-                return Response({'error': 'Failed to create subscription'}, status=400)
-        except stripe.error.StripeError as e:
-            logger.error(f"Stripe API error: {str(e)}")
-            return Response({'error': str(e)}, status=400)
-
-    def get_stripe_price_id(self, tier):
-        price_ids = {
-            UserTier.ESSENTIAL: settings.STRIPE_PRICE_IDS['Essential'],
-            UserTier.PROFESSIONAL: settings.STRIPE_PRICE_IDS['Professional'],
-            UserTier.PREMIUM: settings.STRIPE_PRICE_IDS['Premium'],
+    def get_interval(self, tier_name):
+        intervals = {
+            UserTier.ESSENTIAL: 'monthly',
+            UserTier.PROFESSIONAL: 'quarterly',
+            UserTier.PREMIUM: 'lifetime',
         }
-        return price_ids.get(tier.name)
+        return intervals.get(tier_name, 'monthly')
 
 
 class VerifyPaymentView(APIView):
@@ -224,6 +277,7 @@ class VerifyPaymentView(APIView):
 
     def verify_stripe_payment(self, reference, subscription_id):
         stripe_api = StripeAPI()
+
         if subscription_id:
             try:
                 subscription = stripe_api.retrieve_subscription(subscription_id)
@@ -239,11 +293,22 @@ class VerifyPaymentView(APIView):
                 return self._handle_successful_payment(intent)
 
     def _handle_successful_payment(self, intent):
-        payment = Payment.objects.get(stripe_payment_intent_id=intent.id)
-        payment.status = 'success'
-        payment.save()
-        payment.user.is_paid = True
-        payment.user.save()
+        with transaction.atomic():
+            payment = Payment.objects.get(stripe_payment_intent_id=intent.id)
+            payment.status = 'success'
+            payment.save()
+
+            user = payment.user
+            user.is_paid = True
+            user.tier = payment.tier
+            user.save()
+
+            # Clear cache
+            cache.delete(f'user_{user.id}_tier')
+
+            # Double-check the update
+            user.refresh_from_db()
+            logger.info(f"User {user.email} tier after payment: {user.tier}")
 
         return JsonResponse({
             "status": "success",
@@ -257,20 +322,35 @@ class VerifyPaymentView(APIView):
         })
 
     def _handle_successful_subscription(self, subscription):
-        user = User.objects.get(stripe_customer_id=subscription.customer)
-        user.is_paid = True
-        user.save()
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(stripe_customer_id=subscription.customer)
+            user.is_paid = True
 
-        sub, created = Subscription.objects.update_or_create(
-            user=user,
-            stripe_subscription_id=subscription.id,
-            defaults={
-                'status': subscription.status,
-                'current_period_start': datetime.fromtimestamp(subscription.current_period_start),
-                'current_period_end': datetime.fromtimestamp(subscription.current_period_end),
-                'provider': 'stripe'
-            }
-        )
+            # Update user's tier based on the subscription
+            price_id = subscription.get('items', {}).get('data', [{}])[0].get('price', {}).get('id')
+            new_tier = get_tier_from_stripe_price(price_id)
+            user.tier = new_tier
+            user.save()
+
+            # Clear cache
+            cache.delete(f'user_{user.id}_tier')
+
+            # Update or create Subscription object
+            Subscription.objects.update_or_create(
+                user=user,
+                stripe_subscription_id=subscription.id,
+                defaults={
+                    'status': subscription.status,
+                    'current_period_start': datetime.fromtimestamp(subscription.current_period_start),
+                    'current_period_end': datetime.fromtimestamp(subscription.current_period_end),
+                    'provider': 'stripe'
+                }
+            )
+
+            # Double-check the update
+            user.refresh_from_db()
+            logger.info(f"User {user.email} tier after subscription: {user.tier}")
+
         return JsonResponse({
             "status": "success",
             "message": "Subscription verified successfully",
@@ -326,6 +406,37 @@ class PaymentDetailsView(APIView):
                 "status": "failed",
                 "message": "An error occurred while fetching payment details"
             }, status=500)
+
+
+class BillingHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        stripe_api = StripeAPI()
+        billing_history = stripe_api.get_billing_history(request.user.stripe_customer_id)
+        return Response(billing_history)
+
+
+class CancelSubscriptionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        subscription = Subscription.objects.filter(user=user).first()
+
+        if not subscription:
+            return Response({'error': 'No active subscription found'}, status=400)
+
+        stripe_api = StripeAPI()
+        result = stripe_api.cancel_subscription(subscription.stripe_subscription_id)
+
+        if result:
+            subscription.status = 'canceled'
+            subscription.canceled_at = timezone.now()
+            subscription.save()
+            return Response({'message': 'Subscription canceled successfully'})
+        else:
+            return Response({'error': 'Failed to cancel subscription'}, status=400)
 
 
 class StripeWebhookView(APIView):
@@ -406,7 +517,7 @@ class StripeWebhookView(APIView):
                 payment.save()
 
                 # Update user's tier
-                user = payment.user
+                user = User.objects.select_for_update().get(id=payment.user_id)
                 expected_tier = payment.tier
 
                 logger.info(f"Updating tier for user {user.email}. Current tier: {user.tier}, Expected tier: {expected_tier}")
@@ -418,10 +529,14 @@ class StripeWebhookView(APIView):
                     user.save()
                     logger.info(f"User {user.email} tier updated to {user.tier}")
 
-                # Double-check the tier update
-                user.refresh_from_db()
-                if user.tier != expected_tier:
-                    logger.error(f"Tier update failed for user {user.email}. Current tier: {user.tier}, Expected tier: {expected_tier}")
+                # Verify the tier update
+                updated_user = User.objects.get(id=user.id)
+                if updated_user.tier != expected_tier:
+                    logger.error(f"Tier update verification failed for user {user.email}. Current tier: {updated_user.tier}, Expected tier: {expected_tier}")
+                    raise ValueError("Tier update verification failed")
+
+            # Clear cache after successful database update
+            cache.delete(f'user_{user.id}_tier')
 
             # Send payment notification email
             send_payment_confirmation_email(payment)
@@ -430,6 +545,10 @@ class StripeWebhookView(APIView):
 
         except Payment.DoesNotExist:
             logger.error(f"Payment with Stripe PaymentIntent ID {payment_intent['id']} not found")
+        except User.DoesNotExist:
+            logger.error(f"User not found for payment {payment_intent['id']}")
+        except ValueError as e:
+            logger.error(str(e))
         except Exception as e:
             logger.error(f"Error processing successful payment: {str(e)}")
             raise  # Re-raise the exception to be caught by the outer try-except block
@@ -446,7 +565,7 @@ class StripeWebhookView(APIView):
         current_period_end = datetime.fromtimestamp(subscription['current_period_end'], tz=datetime_timezone.utc)
 
         price_id = subscription['items']['data'][0]['price']['id']
-        new_tier = self.get_tier_from_stripe_price(price_id)
+        new_tier = get_tier_from_stripe_price(price_id)
 
         logger.info(f"Before update: User {user.email} tier: {user.tier}")
 
@@ -497,7 +616,7 @@ class StripeWebhookView(APIView):
         cancel_at_period_end = subscription.get('cancel_at_period_end', False)
 
         price_id = subscription['items']['data'][0]['price']['id']
-        new_tier = self.get_tier_from_stripe_price(price_id)
+        new_tier = get_tier_from_stripe_price(price_id)
 
         logger.info(f"Before update: User {sub.user.email} tier: {sub.user.tier}")
 
@@ -563,20 +682,23 @@ class StripeWebhookView(APIView):
         if not sub:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        payment = Payment.objects.create(
-            user=sub.user,
-            amount=invoice['amount_paid'] / 100,  # Convert cents to dollars
-            currency=invoice['currency'].upper(),
-            reference=invoice['id'],
-            status='success',
-            provider='stripe',
+        payment, created = Payment.objects.get_or_create(
             stripe_charge_id=invoice['charge'],
-            subscription=sub,
-            tier=sub.tier
+            defaults={
+                "user": sub.user,
+                "amount": invoice['amount_paid'] / 100,  # Convert cents to dollars
+                "currency": invoice['currency'].upper(),
+                "reference": invoice['id'],
+                "status": 'success',
+                "provider": 'stripe',
+                "subscription": sub,
+                "tier": sub.tier
+            }
         )
 
-        send_payment_confirmation_email(payment)
+        # send_payment_confirmation_email(payment)
         return Response(status=status.HTTP_200_OK)
+
 
     def handle_invoice_payment_failed(self, invoice, webhook_log):
         subscription_id = invoice['subscription']
@@ -590,27 +712,15 @@ class StripeWebhookView(APIView):
         send_subscription_status_email(sub.user.email, 'payment_failed')
         return Response(status=status.HTTP_200_OK)
 
-    def get_tier_from_stripe_price(self, price_id):
-        # Map Stripe price IDs to UserTier instances
-        price_to_tier = {
-            settings.STRIPE_PRICE_IDS['Essential']: UserTier.ESSENTIAL,
-            settings.STRIPE_PRICE_IDS['Professional']: UserTier.PROFESSIONAL,
-            settings.STRIPE_PRICE_IDS['Premium']: UserTier.PREMIUM,
-        }
-        tier_name = price_to_tier.get(price_id, UserTier.FREE)
-        tier = UserTier.objects.get(name=tier_name)
-        logger.info(f"Retrieved tier: {tier.name} for price_id: {price_id}")
-        return tier
-
     def handle_customer_created(self, customer, webhook_log):
-        # # Logic to handle customer creation
-        # user = User.objects.filter(email=customer['email']).first()
-        # if user:
-        #     user.stripe_customer_id = customer['id']
-        #     user.save()
-        # logger.info(f"Customer created: {customer['id']}")
-        # return Response(status=status.HTTP_200_OK)
-        pass
+        user = User.objects.filter(email=customer['email']).first()
+        if user:
+            user.stripe_customer_id = customer['id']
+            user.save()
+            logger.info(f"Customer created and linked to user: {customer['id']}")
+        else:
+            logger.warning(f"Customer created but no matching user found: {customer['id']}")
+        return Response(status=status.HTTP_200_OK)
 
     def handle_customer_updated(self, customer, webhook_log):
         # # Logic to handle customer update

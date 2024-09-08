@@ -1,5 +1,6 @@
 import stripe
 from django.conf import settings
+
 from koda.config.logging_config import configure_logger
 
 logger = configure_logger(__name__)
@@ -45,6 +46,30 @@ class StripeAPI:
         try:
             subscription = stripe.Subscription.retrieve(subscription_id)
             return subscription
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe API error: {str(e)}")
+            return None
+
+    def get_billing_history(self, customer_id):
+        try:
+            invoices = stripe.Invoice.list(customer=customer_id, limit=10)
+            return [
+                {
+                    'date': invoice.created,
+                    'amount': invoice.total / 100,  # Convert cents to dollars
+                    'status': invoice.status,
+                    'invoice_pdf': invoice.invoice_pdf,
+                }
+                for invoice in invoices.data
+            ]
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe API error: {str(e)}")
+            return []
+
+    def cancel_subscription(self, subscription_id):
+        try:
+            canceled_subscription = stripe.Subscription.delete(subscription_id)
+            return canceled_subscription
         except stripe.error.StripeError as e:
             logger.error(f"Stripe API error: {str(e)}")
             return None

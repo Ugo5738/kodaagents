@@ -426,44 +426,6 @@ def google_callback(request):
     return redirect(settings.FRONTEND_BASE_URL)
 
 
-class UserViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint that allows users to be viewed, edited and searched.
-    """
-
-    queryset = User.objects.exclude(is_superuser=True)
-    serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
-    pagination_class = CustomPageNumberPagination
-    filter_backends = [
-        DjangoFilterBackend,
-        filters.SearchFilter,
-        filters.OrderingFilter,
-    ]
-
-    lookup_field = "id"
-    filterset_fields = ["id", "username", "email"]
-    search_fields = ["id", "username", "email"]
-    ordering_fields = ["id", "username", "email"]
-
-
-class UserView(APIView):
-    def get(self, request: Request) -> Response:
-        token = request.COOKIES.get("jwt")
-
-        if not token:
-            raise AuthenticationFailed("Unauthenticated")
-
-        try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        except jwt.ExpiredSignatureError:
-            raise AuthenticationFailed("Authentication Expired")
-
-        user = User.objects.filter(id=payload["id"]).first()
-        serializer = UserSerializer(user)
-        return Response(serializer.data)
-
-
 class CurrentUserDetailView(APIView):
     """
     An endpoint to get the current logged in users' details.
@@ -474,6 +436,13 @@ class CurrentUserDetailView(APIView):
     def get(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+
+    def patch(self, request):
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ChangePasswordView(generics.UpdateAPIView):
@@ -512,3 +481,63 @@ class ChangePasswordView(generics.UpdateAPIView):
             return Response(response)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            if user.check_password(serializer.data.get('old_password')):
+                user.set_password(serializer.data.get('new_password'))
+                user.save()
+                return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
+            return Response({'error': 'Incorrect old password.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        user.delete()
+        return Response({'message': 'Account deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows users to be viewed, edited and searched.
+    """
+
+    queryset = User.objects.exclude(is_superuser=True)
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomPageNumberPagination
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+
+    lookup_field = "id"
+    filterset_fields = ["id", "username", "email"]
+    search_fields = ["id", "username", "email"]
+    ordering_fields = ["id", "username", "email"]
+
+
+class UserView(APIView):
+    def get(self, request: Request) -> Response:
+        token = request.COOKIES.get("jwt")
+
+        if not token:
+            raise AuthenticationFailed("Unauthenticated")
+
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationFailed("Authentication Expired")
+
+        user = User.objects.filter(id=payload["id"]).first()
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+
+

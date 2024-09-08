@@ -1,415 +1,131 @@
-import json
 import uuid
 
-import boto3
-from django.conf import settings
 from django.core.files.storage import default_storage
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404
-from django.views import View
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from resume.cl_opt import (
-    customize_improved_cover_letter,
-    customize_optimized_cover_letter,
-    get_default_cover_letter,
-    improve_cover_letter,
-    optimize_cover_letter,
-)
-from resume.job_post import optimize_job_post
-from resume.models import (
-    CoverLetter,
-    JobPost,
-    OptimizedCoverLetterContent,
-    OptimizedResumeContent,
-    Resume,
-)
-from resume.resume_opt import (
-    customize_improved_resume,
-    customize_optimized_resume,
-    improve_resume,
-    optimize_resume,
-)
-from resume.serializers import (
-    CoverLetterSerializer,
-    JobPostSerializer,
-    OptimizedCoverLetterContentSerializer,
-    OptimizedResumeSerializer,
-    ResumeSerializer,
-)
+from resume.models import OptimizedDocument, OriginalDocument
+from resume.serializers import OptimizedDocumentSerializer, OriginalDocumentSerializer
 
 
-class ResumeDetailView(View):
-    def get(self, request, resume_id):
-        resume = get_object_or_404(Resume, resume_id=resume_id)
-        serializer = ResumeSerializer(resume)
-        return JsonResponse(serializer.data, safe=False)
+class DocumentsView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request, *args, **kwargs):
+        document_type = request.query_params.get('document_type', 'resume')
 
-class OptimizedResumeContentDetailView(View):
-    def get(self, request, resume_id):
-        optimized_resume_content = get_object_or_404(
-            OptimizedResumeContent, resume__resume_id=resume_id
+        # Get all original documents for the user and document type
+        original_documents = OriginalDocument.objects.filter(
+            user=request.user,
+            document_type=document_type
         )
-        serializer = OptimizedResumeSerializer(optimized_resume_content)
-        return JsonResponse(serializer.data, safe=False)
 
-
-class CoverLetterDetailView(View):
-    def get(self, request, cover_letter_id):
-        cover_letter = get_object_or_404(CoverLetter, cover_letter_id=cover_letter_id)
-        serializer = CoverLetterSerializer(cover_letter)
-        return JsonResponse(serializer.data, safe=False)
-
-
-class OptimizedCoverLetterContentDetailView(View):
-    def get(self, request, cover_letter_id):
-        optimized_cover_letter_content = get_object_or_404(
-            OptimizedCoverLetterContent, cover_letter__cover_letter_id=cover_letter_id
+        # Get all optimized documents for the user and document type
+        optimized_documents = OptimizedDocument.objects.filter(
+            original_document__user=request.user,
+            document_type=document_type,
+            is_latest=True
         )
-        serializer = OptimizedCoverLetterContentSerializer(
-            optimized_cover_letter_content
-        )
-        return JsonResponse(serializer.data, safe=False)
 
+        grouped_documents = {}
 
-class JobPostDetailView(View):
-    def get(self, request, job_post_id):
-        job_post = get_object_or_404(JobPost, job_post_id=job_post_id)
-        serializer = JobPostSerializer(job_post)
-        return JsonResponse(serializer.data, safe=False)
-
-
-# ============================> RESUME <============================
-class ResumeImprovementView(View):
-    """
-    Improves a resume for a given applicant ID
-    """
-
-    async def get(self, request, applicant_id, format=None):
-        try:
-            # Get the optimized content
-            pdf_url = improve_resume.delay(applicant_id)
-            # pdf_url = improve_resume(applicant_id)
-            data = {
-                "success": "Resume Improvement Initiated",
-                # "improved_content": pdf_url,
+        # Process original documents
+        for document in original_documents:
+            grouped_documents[document.category] = {
+                'original': OriginalDocumentSerializer(document).data,
+                'optimized': None
             }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
 
-
-class ResumeOptimizationView(View):
-    """
-    Improves a resume for a given applicant ID to the given job ID
-    """
-
-    serializer_class = None
-
-    async def get(self, request, applicant_id, job_post_id, format=None):
-        try:
-            # Get the optimized content
-            return_data = optimize_resume.delay(applicant_id, job_post_id)
-            # return_data = optimize_resume(applicant_id, job_post_id)
-            data = {
-                "success": "Resume Optimization Initiated",
-                # "optimized_content": return_data,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-class ResumeImprovementCustomizationView(View):
-    """
-    Customizes improved resume for a given applicant ID
-    """
-
-    serializer_class = None
-
-    async def post(self, request, applicant_id, format=None):
-        try:
-            # Parse JSON data from the request body
-            body_unicode = request.body.decode("utf-8")
-            body_data = json.loads(body_unicode)
-
-            # Extract custom_instruction from the parsed data
-            custom_instruction = body_data.get("custom_instruction")
-
-            # Call the utility function with applicant_id and custom_instruction
-            return_data = customize_improved_resume.delay(
-                applicant_id, custom_instruction
-            )
-            # return_data = customize_improved_resume(applicant_id, custom_instruction)
-            data = {
-                "success": "Resume Improvement Customization Initiated",
-                # "optimized_content": return_data,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-class ResumeOptimizationCustomizationView(View):
-    """
-    Customizes tailored resume for a given applicant ID to the given job ID
-    """
-
-    serializer_class = None
-
-    async def post(self, request, applicant_id, job_post_id, format=None):
-        try:
-            # Parse JSON data from the request body
-            body_unicode = request.body.decode("utf-8")
-            body_data = json.loads(body_unicode)
-
-            # Extract custom_instruction from the parsed data
-            custom_instruction = body_data.get("custom_instruction")
-
-            # Call the utility function with applicant_id, job_post_id, and custom_instruction
-            return_data = customize_optimized_resume.delay(
-                applicant_id, job_post_id, custom_instruction
-            )
-            # return_data = customize_optimized_resume(
-            #     applicant_id, job_post_id, custom_instruction
-            # )
-            data = {
-                "success": "Resume Optimization Customization Initiated",
-                # "optimized_content": return_data,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-# ============================> RESUME <============================
-
-
-# ============================> COVER LETTER <============================
-class CoverLetterCreationView(View):
-    """
-    This view handles cover letter creation. It does not interact with the database directly,
-    hence does not use a serializer_class. Instead, it relies on custom utility functions.
-    """
-
-    serializer_class = None
-
-    async def get(self, request, applicant_id, format=None):
-        try:
-            # Get the optimized content
-            pdf_url = get_default_cover_letter.delay(applicant_id)
-            # pdf_url = get_default_cover_letter(applicant_id)
-            data = {
-                "success": "Cover Letter Creation Initiated",
-                # "improved_content": pdf_url,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-class CoverLetterImprovementView(View):
-    """
-    This view handles cover letter improvement. It does not interact with the database directly,
-    hence does not use a serializer_class. Instead, it relies on custom utility functions.
-    """
-
-    serializer_class = None
-
-    async def get(self, request, applicant_id, format=None):
-        try:
-            # Get the optimized content
-            pdf_url = improve_cover_letter.delay(applicant_id)
-            # pdf_url = improve_cover_letter(applicant_id)
-            data = {
-                "success": "Cover Letter Improvement Initiated",
-                # "improved_content": pdf_url,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-class CoverLetterOptimizationView(View):
-    """
-    This view handles cover letter optimization. It does not interact with the database directly,
-    hence does not use a serializer_class. Instead, it relies on custom utility functions.
-    """
-
-    serializer_class = None
-
-    # def get(self, request, application_id, job_post_id, format=None):
-    async def get(self, request, applicant_id, job_post_id, format=None):
-        try:
-            return_data = optimize_cover_letter.delay(applicant_id, job_post_id)
-            # return_data = optimize_cover_letter(applicant_id, job_post_id)
-            data = {
-                "success": "Cover Letter Optimization Initiated",
-                # "optimized_content": return_data,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-class CoverLetterImprovementCustomizationView(View):
-    """
-    This view handles resume optimization. It does not interact with the database directly,
-    hence does not use a serializer_class. Instead, it relies on custom utility functions.
-    """
-
-    serializer_class = None
-
-    async def post(self, request, applicant_id, format=None):
-        try:
-            # Parse JSON data from the request body
-            body_unicode = request.body.decode("utf-8")
-            body_data = json.loads(body_unicode)
-
-            # Extract custom_instruction from the parsed data
-            custom_instruction = body_data.get("custom_instruction")
-
-            # Call the utility function with applicant_id and custom_instruction
-            return_data = customize_improved_cover_letter.delay(
-                applicant_id, custom_instruction
-            )
-            # return_data = customize_improved_cover_letter(
-            #     applicant_id, custom_instruction
-            # )
-            data = {
-                "success": "Cover Letter Improvement Customization Initiated",
-                # "optimized_content": return_data,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-class CoverLetterOptimizationCustomizationView(View):
-    """
-    This view handles cover letter optimization. It does not interact with the database directly,
-    hence does not use a serializer_class. Instead, it relies on custom utility functions.
-    """
-
-    serializer_class = None
-
-    async def post(self, request, applicant_id, job_post_id, format=None):
-        try:
-            # Parse JSON data from the request body
-            body_unicode = request.body.decode("utf-8")
-            body_data = json.loads(body_unicode)
-
-            # Extract custom_instruction from the parsed data
-            custom_instruction = body_data.get("custom_instruction")
-
-            # Call the utility function with applicant_id, job_post_id, and custom_instruction
-            return_data = customize_optimized_cover_letter.delay(
-                applicant_id, job_post_id, custom_instruction
-            )
-            # return_data = customize_optimized_cover_letter(
-            #     applicant_id, job_post_id, custom_instruction
-            # )
-            data = {
-                "success": "Cover Letter Optimization Customization Initiated",
-                # "optimized_content": return_data,
-            }
-            return JsonResponse(data)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-
-# ============================> COVER LETTER <============================
-
-
-# ============================> JOB POST <============================
-class JobOptimizationView(View):
-    """
-    This view handles job post optimization. It does not interact with the database directly,
-    hence does not use a serializer_class. Instead, it relies on custom utility functions.
-    """
-
-    serializer_class = None
-
-    async def get(self, request, job_id, format=None):
-        # feedback_only = request.query_params.get("feedback", "false").lower() == "true"
-        try:
-            optimized_job_post_content = optimize_job_post.delay(job_id)
-            # optimized_job_post_content = optimize_job_post(job_id)
-            # might need to use the mark down dangerous html before pushing to frontend
-            return JsonResponse(
-                {
-                    "success": "Job Optimization Initiated",
-                    # "optimized_content": optimized_job_post_content,
+        # Process optimized documents
+        for optimized in optimized_documents:
+            category = optimized.original_document.category
+            if category not in grouped_documents:
+                # If there's no original document, create an entry with only optimized document
+                grouped_documents[category] = {
+                    'original': None,
+                    'optimized': OptimizedDocumentSerializer(optimized).data
                 }
+            else:
+                # If there's an original document, add the optimized document to it
+                grouped_documents[category]['optimized'] = OptimizedDocumentSerializer(optimized).data
+
+        return Response(grouped_documents)
+
+
+class DocumentUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        file_obj = request.FILES.get('file')
+        category = request.data.get('category', "General")
+        document_type = request.data.get('document_type')
+
+        if not all([file_obj, category, document_type]):
+            return Response({'error': 'Missing required fields'}, status=status.HTTP_400_BAD_REQUEST)
+
+        file_key = f"temp/{uuid.uuid4()}_{file_obj.name}"
+        file_name = default_storage.save(file_key, file_obj)
+        file_url = default_storage.url(file_name)
+
+        # Check if a document already exists for this user, category, and document_type
+        existing_document = OriginalDocument.objects.filter(
+            user=request.user,
+            category=category,
+            document_type=document_type
+        ).first()
+
+        if existing_document:
+            # Update existing document
+            existing_document.file_key = file_key
+            existing_document.file_url = file_url
+            existing_document.save()
+            serializer = OriginalDocumentSerializer(existing_document)
+        else:
+            # Create new document
+            new_document = OriginalDocument.objects.create(
+                user=request.user,
+                category=category,
+                file_key=file_key,
+                file_url=file_url,
+                document_type=document_type
             )
-        except Exception as e:
-            return JsonResponse(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            serializer = OriginalDocumentSerializer(new_document)
+
+        return Response({
+            'success': True,
+            'message': 'Document uploaded successfully',
+            'document': serializer.data
+        }, status=status.HTTP_200_OK)
 
 
-# ============================> JOB POST <============================
+class DeleteOriginalDocumentView(APIView):
+    permission_classes = [IsAuthenticated]
 
-
-class Boto3UploadView(View):
-    def get(self, request):
-        # The path to your file within your project directory
-        file_path = "resume123.pdf"  # Replace with your file's path
-
-        # Create an S3 client
-        s3 = boto3.client(
-            "s3",
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        )
-
-        # Define the bucket name and the key for the file in S3
-        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
-        file_key = "resume123.pdf"  # The name you want the file to have in S3
-
-        # Try to upload the file
+    def delete(self, request, id):
         try:
-            with open(file_path, "rb") as data:
-                s3.upload_fileobj(
-                    data,
-                    bucket_name,
-                    file_key,
-                    # Removed the ExtraArgs with ACL since it's not supported with your bucket configuration
-                )
-            return JsonResponse({"message": "File uploaded successfully!"}, status=200)
-        except Exception as e:
-            print(f"============ Error Details Start ============")
-            print(e)
-            print(f"============ Error Details End ============")
-            return JsonResponse({"message": "Upload failed."}, status=500)
+            document = OriginalDocument.objects.get(id=id, user=request.user)
+            document.delete()  # This will also delete associated OptimizedDocuments due to CASCADE
+            return Response({"message": "Original document and its optimized versions deleted successfully"}, status=status.HTTP_200_OK)
+        except OriginalDocument.DoesNotExist:
+            return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
-# http://127.0.0.1:8000/api/optimizers/optimize-job-post/654194177b7c7c8236e8541f/
-# http://127.0.0.1:8000/api/optimizers/optimize-job-post/654194177b7c7c8236e8541f/?feedback=true
-# http://127.0.0.1:8000/api/optimizers/optimize-resume/63a6af57677ed8a015025a62/654194177b7c7c8236e8541f/
-# applicant_id 63a6af57677ed8a015025a62
-# job_post_id 654194177b7c7c8236e8541f
-# job_post_id = 65aa68567bd03fff776fbfcf
+class DeleteOptimizedDocumentView(APIView):
+    permission_classes = [IsAuthenticated]
 
-
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-
-# @csrf_exempt
-# def upload_resume(request):
-#     if request.method == 'POST' and request.FILES['file']:
-#         file = request.FILES['file']
-#         file_key = f"temp/{uuid4()}_{file.name}"
-#         path = default_storage.save(file_key, file)
-#         return JsonResponse({'success': True, 'file_key': file_key})
-#     return JsonResponse({'success': False}, status=400)
-
+    def delete(self, request, id):
+        try:
+            document = OptimizedDocument.objects.get(id=id, original_document__user=request.user)
+            document.delete()
+            return Response({"message": "Optimized document deleted successfully"}, status=status.HTTP_200_OK)
+        except OptimizedDocument.DoesNotExist:
+            return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class FileUploadView(APIView):
+    permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request, *args, **kwargs):
@@ -420,4 +136,53 @@ class FileUploadView(APIView):
         print("This is the file name: ", file_name)
         file_url = default_storage.url(file_name)
         print("This is the file url: ", file_url)
+
+        category="General"
+        document_type="resume"
+
+        OriginalDocument.objects.update_or_create(
+            user=request.user,
+            category=category,
+            defaults={
+                'file_key': file_key,
+                'file_url': file_url,
+                'document_type': document_type,
+            }
+        )
+
         return Response({"success": True, "file_key": file_name}, status=status.HTTP_200_OK)
+
+
+# SAMPLE GROUPED DOCUMENT
+{
+  'Digital Marketing': {
+    'original': {
+      'id': 1,
+      'file_url': "https://kodastorage.s3.amazonaws.com/media/temp/4f9c2e00-2e8d-431e-891f-5de0febb521c_%20Klein%20Udumaga's%20CV%20-1%20.pdf",
+      'document_type': 'resume',
+      'uploaded_at': '2024-09-04T17:19:47.513444Z'
+    },
+    'optimized': {
+      'id': 1,
+      'pdf_url': 'https://kodastorage.s3.amazonaws.com/media/resume/optimized/41f3662a-2f84-4d96-aa7e-8a01d64f8df6.pdf',
+      'docx_url': 'https://kodastorage.s3.amazonaws.com/media/resume/optimized/1714cfd0-9585-495b-8eb2-8ce1405e94c8.docx',
+      'document_type': 'resume',
+      'created_at': '2024-09-04T17:20:34.138902Z'
+    }
+  },
+  'General': {
+    'original': {
+      'id': 2,
+      'file_url': 'https://kodastorage.s3.amazonaws.com/media/temp/79d49147-5dc1-488d-ba93-cefb1bc7dbc3_CVAlain%20august.pdf',
+      'document_type': 'resume',
+      'uploaded_at': '2024-09-04T17:34:53.482218Z'
+    },
+    'optimized': {
+      'id': 3,
+      'pdf_url': 'https://kodastorage.s3.amazonaws.com/media/resume/improved/891921cf-131a-4660-a419-03622b974dab.pdf',
+      'docx_url': 'https://kodastorage.s3.amazonaws.com/media/resume/improved/0511a02f-9fc5-47f3-a82b-b831a2118e78.docx',
+      'document_type': 'resume',
+      'created_at': '2024-09-04T17:35:44.021790Z'
+    }
+  }
+}

@@ -53,38 +53,6 @@ cover_letter_example_structure = json.dumps(
 )
 
 
-resume_fb_example_structure = json.dumps(
-    {
-        "contact": "Feedback on contact section",
-        "summary": "Feedback on summary section",
-        "experiences": {
-            "experience_1": "Feedback on first experience section",
-            "experience_2": "Feedback on second experience section",
-            "experience_3": "Feedback on third experience section",
-            # Additional education entries can be added here
-        },
-        "education": [
-            "Feedback on first education section",
-            # Additional education entries can be added here
-        ],
-        "skills": "Feedback on skills section",
-        "certifications": [
-            "Feedback on certifications section",
-            # Additional certifications can be listed here
-        ],
-        # "projects": [
-        #     "Feedback on projects section",
-        #     # Additional projects can be listed here
-        # ],
-        "references": [
-            "Feedback on references section",
-            # Additional references can be added here
-        ],
-    },
-    indent=2,
-)
-
-
 resume_example_structure = json.dumps(
     {
         "contact": {
@@ -181,6 +149,51 @@ resume_example_structure = json.dumps(
     },
     indent=2,
 )
+
+
+resume_fb_example_structure = json.dumps(
+    {
+        "contact": "Feedback on contact section",
+        "summary": "Feedback on summary section",
+        "experiences": {
+            "experience_1": "Feedback on first experience section",
+            "experience_2": "Feedback on second experience section",
+            "experience_3": "Feedback on third experience section",
+            # Additional education entries can be added here
+        },
+        "education": [
+            "Feedback on first education section",
+            # Additional education entries can be added here
+        ],
+        "skills": "Feedback on skills section",
+        "certifications": [
+            "Feedback on certifications section",
+            # Additional certifications can be listed here
+        ],
+        # "projects": [
+        #     "Feedback on projects section",
+        #     # Additional projects can be listed here
+        # ],
+        "references": [
+            "Feedback on references section",
+            # Additional references can be added here
+        ],
+    },
+    indent=2,
+)
+
+
+cover_letter_example_structure_openai = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "recipient": {"type": "string"},
+        "body": {"type": "string"},
+        "closing": {"type": "string"}
+    },
+    "required": ["name", "recipient", "body", "closing"],
+    "additionalProperties": False,
+}
 
 
 resume_example_structure_openai = {
@@ -317,19 +330,6 @@ resume_example_structure_openai = {
         }
     },
     "required": ["contact", "summary", "experiences", "education", "skills", "certifications", "references"],
-    "additionalProperties": False,
-}
-
-
-cover_letter_example_structure_openai = {
-    "type": "object",
-    "properties": {
-        "name": {"type": "string"},
-        "recipient": {"type": "string"},
-        "body": {"type": "string"},
-        "closing": {"type": "string"}
-    },
-    "required": ["name", "recipient", "body", "closing"],
     "additionalProperties": False,
 }
 
