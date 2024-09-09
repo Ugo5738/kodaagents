@@ -37,19 +37,19 @@ services:
       - DEFAULT_HOST=api.resumeguru.pro
 
   letsencrypt-nginx-proxy-companion:
-  #   image: jrcs/letsencrypt-nginx-proxy-companion
-  #   container_name: nginx_letsencrypt
-  #   depends_on:
-  #     - nginx-proxy
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock:ro
-  #     - ./certs:/etc/nginx/certs:rw
-  #     - ./nginx/vhost.d:/etc/nginx/vhost.d
-  #     - ./nginx/html:/usr/share/nginx/html
-  #     - ./nginx/acme.sh:/etc/acme.sh
-  #   environment:
-  #     - NGINX_PROXY_CONTAINER=nginx_reverse_proxy
-  #     - DEFAULT_EMAIL=resumegurupro@gmail.com
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: nginx_letsencrypt
+    depends_on:
+      - nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/nginx/certs:rw
+      - ./nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/acme.sh:/etc/acme.sh
+    environment:
+      - NGINX_PROXY_CONTAINER=nginx_reverse_proxy
+      - DEFAULT_EMAIL=resumegurupro@gmail.com
 
   celery:
     build:
