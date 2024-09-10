@@ -868,8 +868,15 @@ async def load_document(file_key=None, doc_url=None):
         # texts = text_splitter.split_documents(data)
         # return "   ".join(t.page_content for t in texts)
     elif file_key:
-        with default_storage.open(file_key, 'rb') as file:
-            file_content = file.read()
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+        )
+
+        try:
+            file_obj = s3.get_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=file_key)
+            file_content = file_obj['Body'].read()
             file_extension = os.path.splitext(file_key)[1].lower()
 
             # Create a temporary file for all types
@@ -891,6 +898,9 @@ async def load_document(file_key=None, doc_url=None):
                 data = loader.load()
             finally:
                 os.unlink(temp_file_path)  # Delete the temporary file
+        except ClientError as e:
+            print(f"Error downloading file from S3: {str(e)}")
+            raise
     else:
         raise ValueError("Either file_key or doc_url must be provided")
 
@@ -1194,6 +1204,7 @@ async def analyze_and_improve_document(doc_type="resume", content=None, job_desc
         structure = get_structure(api_type)
         prompt = get_prompt(api_type, doc_type, structure, content, job_description)
         result = await get_anth_chat_response(prompt)
+        # print("This is the result: ", result)
 
         experiences_list = result["improved_resume_content"]["experiences"]
         experiences_dict = {

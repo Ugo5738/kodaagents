@@ -1,5 +1,7 @@
+import mimetypes
 import uuid
 
+from django.conf import settings
 from django.core.files.storage import default_storage
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -7,9 +9,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from koda.config.logging_config import configure_logger
 from resume.models import OptimizedDocument, OriginalDocument
 from resume.serializers import OptimizedDocumentSerializer, OriginalDocumentSerializer
+from resume.utils.util_funcs import get_full_url, upload_directly_to_s3
 
+logger = configure_logger(__name__)
 
 class DocumentsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -66,39 +71,61 @@ class DocumentUploadView(APIView):
         if not all([file_obj, category, document_type]):
             return Response({'error': 'Missing required fields'}, status=status.HTTP_400_BAD_REQUEST)
 
-        file_key = f"temp/{uuid.uuid4()}_{file_obj.name}"
-        file_name = default_storage.save(file_key, file_obj)
-        file_url = default_storage.url(file_name)
+        # Generate a unique file name
+        file_name = f"{uuid.uuid4()}_{file_obj.name}"
 
-        # Check if a document already exists for this user, category, and document_type
-        existing_document = OriginalDocument.objects.filter(
-            user=request.user,
-            category=category,
-            document_type=document_type
-        ).first()
+        # Construct the S3 key (path)
+        file_key = f"document/{file_name}"
 
-        if existing_document:
-            # Update existing document
-            existing_document.file_key = file_key
-            existing_document.file_url = file_url
-            existing_document.save()
-            serializer = OriginalDocumentSerializer(existing_document)
-        else:
-            # Create new document
-            new_document = OriginalDocument.objects.create(
+        # Get the file's content type
+        content_type, _ = mimetypes.guess_type(file_obj.name)
+        content_type = content_type or 'application/octet-stream'
+
+        try:
+            # Upload the file directly to S3
+            upload_directly_to_s3(
+                file=file_obj,
+                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                s3_key=file_key,
+                content_type=content_type
+            )
+
+            file_url = get_full_url(file_key)
+
+            # Check if a document already exists for this user, category, and document_type
+            existing_document = OriginalDocument.objects.filter(
                 user=request.user,
                 category=category,
-                file_key=file_key,
-                file_url=file_url,
                 document_type=document_type
-            )
-            serializer = OriginalDocumentSerializer(new_document)
+            ).first()
 
-        return Response({
-            'success': True,
-            'message': 'Document uploaded successfully',
-            'document': serializer.data
-        }, status=status.HTTP_200_OK)
+            if existing_document:
+                # Update existing document
+                existing_document.file_key = file_key
+                existing_document.file_url = file_url
+                existing_document.save()
+                serializer = OriginalDocumentSerializer(existing_document)
+            else:
+                # Create new document
+                new_document = OriginalDocument.objects.create(
+                    user=request.user,
+                    category=category,
+                    file_key=file_key,
+                    file_url=file_url,
+                    document_type=document_type
+                )
+                serializer = OriginalDocumentSerializer(new_document)
+
+            return Response({
+                'success': True,
+                'message': 'Document uploaded successfully',
+                'document': serializer.data
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # Log the error (make sure you have logging configured)
+            logger.error(f"Document upload failed: {str(e)}")
+            return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DeleteOriginalDocumentView(APIView):
@@ -124,6 +151,7 @@ class DeleteOptimizedDocumentView(APIView):
         except OptimizedDocument.DoesNotExist:
             return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
 
+
 class FileUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -131,26 +159,45 @@ class FileUploadView(APIView):
     def post(self, request, *args, **kwargs):
         file_obj = request.data['file']
         print("This is the file obj: ", file_obj)
-        file_key = f"temp/{uuid.uuid4()}_{file_obj.name}"
-        file_name = default_storage.save(file_key, file_obj)
-        print("This is the file name: ", file_name)
-        file_url = default_storage.url(file_name)
-        print("This is the file url: ", file_url)
 
-        category="General"
-        document_type="resume"
+        # Generate a unique file name
+        file_name = f"{uuid.uuid4()}_{file_obj.name}"
 
-        OriginalDocument.objects.update_or_create(
-            user=request.user,
-            category=category,
-            defaults={
-                'file_key': file_key,
-                'file_url': file_url,
-                'document_type': document_type,
-            }
-        )
+        # Construct the S3 key (path)
+        file_key = f"document/{file_name}"
 
-        return Response({"success": True, "file_key": file_name}, status=status.HTTP_200_OK)
+        # Get the file's content type
+        content_type, _ = mimetypes.guess_type(file_obj.name)
+        content_type = content_type or 'application/octet-stream'
+
+        try:
+            # Upload the file directly to S3
+            upload_directly_to_s3(
+                file=file_obj,
+                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                s3_key=file_key,
+                content_type=content_type
+            )
+
+            file_url = get_full_url(file_key)
+            print("This is the file url: ", file_url)
+
+            OriginalDocument.objects.update_or_create(
+                user=request.user,
+                category="General",
+                defaults={
+                    'file_key': file_key,
+                    'file_url': file_url,
+                    'document_type': "resume",
+                }
+            )
+
+            return Response({"success": True, "file_key": file_key}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # Log the error (make sure you have logging configured)
+            logger.error(f"File upload failed: {str(e)}")
+            return Response({"success": False, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # SAMPLE GROUPED DOCUMENT
