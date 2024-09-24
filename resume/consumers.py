@@ -223,7 +223,7 @@ class ResumeConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_original_document(self, doc_id):
-        original_doc = OriginalDocument.objects.get(id=doc_id)
+        # original_doc = OriginalDocument.objects.get(id=doc_id)
         return OriginalDocument.objects.get(id=doc_id)
 
     @database_sync_to_async

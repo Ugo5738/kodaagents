@@ -15,7 +15,7 @@ class OriginalDocument(models.Model):
     document_type = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     modified_at = models.DateTimeField(auto_now=True)
-    content = models.TextField()  # Stored as plain text or JSON
+    content = models.TextField()
 
     def __str__(self):
         return f"{self.user.username}'s {self.document_type} - {self.uploaded_at}"
