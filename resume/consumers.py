@@ -28,6 +28,7 @@ from resume.utils.util_funcs import (
 logger = configure_logger(__name__)
 file_logger = configure_file_logger(__name__)
 
+
 class ResumeConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
@@ -52,10 +53,10 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             message_type = text_data_json.get("type")
 
             handlers = {
-                'resume_uploaded': self.handle_resume_upload,
-                'jobDetails': self.handle_job_details,
-                'customize_document': self.handle_customize_document,
-                'download_document': self.handle_download_document
+                "resume_uploaded": self.handle_resume_upload,
+                "jobDetails": self.handle_job_details,
+                "customize_document": self.handle_customize_document,
+                "download_document": self.handle_download_document,
             }
 
             handler = handlers.get(message_type)
@@ -77,12 +78,12 @@ class ResumeConsumer(AsyncWebsocketConsumer):
         return document.id
 
     async def handle_resume_upload(self, data):
-        file_key = data['file_key']
-        self.session_data['resume_file_key'] = file_key
+        file_key = data["file_key"]
+        self.session_data["resume_file_key"] = file_key
 
         doc_content = await load_document(file_key=file_key)
         original_doc_id = await self.save_original_document(file_key, doc_content)
-        self.session_data['original_doc_id'] = original_doc_id
+        self.session_data["original_doc_id"] = original_doc_id
 
         await self.send_success("Resume file uploaded and stored successfully")
 
@@ -92,30 +93,34 @@ class ResumeConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_latest_original_document(self, category, document_type):
-        return OriginalDocument.objects.filter(
-            user=self.user,
-            category=category,
-            document_type=document_type
-        ).order_by('-uploaded_at').first()
+        return (
+            OriginalDocument.objects.filter(
+                user=self.user, category=category, document_type=document_type
+            )
+            .order_by("-modified_at")
+            .first()
+        )
 
     async def handle_job_details(self, data):
-        job_details = data['details']
-        category = data.get('category', 'General')  # Default to 'General' if not provided
-        document_type = data.get('document_type', 'resume')  # Default to 'resume' if not provided
+        job_details = data["details"]
+        category = data.get("category", "General")  # Default to 'General' if not provided
+        document_type = data.get("document_type", "resume")  # Default to 'resume' if not provided
         job_details_obj = await self.save_job_details(job_details)
-        self.session_data['job_details_id'] = job_details_obj.id
+        self.session_data["job_details_id"] = job_details_obj.id
 
         original_doc = await self.get_latest_original_document(category, document_type)
-        self.session_data['original_doc_id'] = original_doc.id
+        self.session_data["original_doc_id"] = original_doc.id
 
-        if 'original_doc_id' in self.session_data:
-            if await self.increment_usage('creation'):
+        if "original_doc_id" in self.session_data:
+            if await self.increment_usage("creation"):
                 await self.process_resume_and_job_details()
         else:
             await self.send_error("Resume not uploaded yet")
 
     @database_sync_to_async
-    def save_optimized_document(self, original_doc_id, job_details_id, document_type, pdf_url, docx_url, content):
+    def save_optimized_document(
+        self, original_doc_id, job_details_id, document_type, pdf_url, docx_url, content
+    ):
         original_doc = OriginalDocument.objects.get(id=original_doc_id)
         job_details = JobDetails.objects.get(id=job_details_id) if job_details_id else None
 
@@ -125,17 +130,24 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             document_type=document_type,
             pdf_url=pdf_url,
             docx_url=docx_url,
-            content=content
+            content=content,
         )
 
     @database_sync_to_async
-    def save_optimization_analytics(self, optimized_doc_id, job_match_score, interview_potential_score, ats_optimization, tailoring_to_job):
+    def save_optimization_analytics(
+        self,
+        optimized_doc_id,
+        job_match_score,
+        interview_potential_score,
+        ats_optimization,
+        tailoring_to_job,
+    ):
         return OptimizationAnalytics.objects.create(
             optimized_document_id=optimized_doc_id,
             job_match_score=job_match_score,
             interview_potential_score=interview_potential_score,
             ats_optimization=ats_optimization,
-            tailoring_to_job=tailoring_to_job
+            tailoring_to_job=tailoring_to_job,
         )
 
     @database_sync_to_async
@@ -146,33 +158,35 @@ class ResumeConsumer(AsyncWebsocketConsumer):
         return summary
 
     async def process_resume_and_job_details(self):
-        original_doc_id = self.session_data['original_doc_id']
-        job_details_id = self.session_data.get('job_details_id')
+        original_doc_id = self.session_data["original_doc_id"]
+        job_details_id = self.session_data.get("job_details_id")
 
         try:
             original_doc = await self.get_original_document(original_doc_id)
             job_details = await self.get_job_details(job_details_id) if job_details_id else None
 
-            result = await get_anth_doc_urls(original_doc.content, job_details.content if job_details else None)
+            result = await get_anth_doc_urls(
+                original_doc.content, job_details.content if job_details else None
+            )
 
             # Save optimized resume
             optimized_resume = await self.save_optimized_document(
                 original_doc_id,
                 job_details_id,
-                'resume',
+                "resume",
                 result["documents"]["resume"]["pdf_url"],
                 result["documents"]["resume"]["docx_url"],
-                json.dumps(result["documents"]["resume"])
+                json.dumps(result["documents"]["resume"]),
             )
 
             # Save optimized cover letter
             optimized_cl = await self.save_optimized_document(
                 original_doc_id,
                 job_details_id,
-                'cover_letter',
+                "cover_letter",
                 result["documents"]["cover_letter"]["pdf_url"],
                 result["documents"]["cover_letter"]["docx_url"],
-                json.dumps(result["documents"]["cover_letter"])
+                json.dumps(result["documents"]["cover_letter"]),
             )
 
             # Save analytics
@@ -181,13 +195,12 @@ class ResumeConsumer(AsyncWebsocketConsumer):
                 result["insights"]["scores"]["job_match"],
                 result["insights"]["scores"]["interview_potential"],
                 result["insights"]["improvement_summary"]["ats_optimization"],
-                result["insights"]["improvement_summary"]["tailoring_to_job"]
+                result["insights"]["improvement_summary"]["tailoring_to_job"],
             )
 
             # Save improvement summary
             await self.save_improvement_summary(
-                optimized_resume.id,
-                result["insights"]["improvement_summary"]["key_changes"]
+                optimized_resume.id, result["insights"]["improvement_summary"]["key_changes"]
             )
 
             final_result = {
@@ -199,8 +212,8 @@ class ResumeConsumer(AsyncWebsocketConsumer):
                 },
                 "initial_optimization": {
                     "improvement_summary": result["insights"]["improvement_summary"],
-                    "scores": result["insights"]["scores"]
-                }
+                    "scores": result["insights"]["scores"],
+                },
             }
 
             await self.send_message(final_result)
@@ -210,6 +223,7 @@ class ResumeConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_original_document(self, doc_id):
+        original_doc = OriginalDocument.objects.get(id=doc_id)
         return OriginalDocument.objects.get(id=doc_id)
 
     @database_sync_to_async
@@ -220,28 +234,27 @@ class ResumeConsumer(AsyncWebsocketConsumer):
     def get_optimized_document(self, original_doc_id, doc_type):
         try:
             return OptimizedDocument.objects.get(
-                original_document_id=original_doc_id,
-                document_type=doc_type,
-                is_latest=True
+                original_document_id=original_doc_id, document_type=doc_type, is_latest=True
             )
         except OptimizedDocument.DoesNotExist:
             return None
 
     @database_sync_to_async
-    def save_document_customization(self, optimized_doc_id, instruction, pdf_url, docx_url, content):
+    def save_document_customization(
+        self, optimized_doc_id, instruction, pdf_url, docx_url, content
+    ):
         return DocumentCustomization.objects.create(
             optimized_document_id=optimized_doc_id,
             instruction=instruction,
             pdf_url=pdf_url,
             docx_url=docx_url,
-            content=content
+            content=content,
         )
 
     @database_sync_to_async
     def save_customization_analytics(self, customization_id, effectiveness_impact):
         return CustomizationAnalytics.objects.create(
-            customization_id=customization_id,
-            effectiveness_impact=effectiveness_impact
+            customization_id=customization_id, effectiveness_impact=effectiveness_impact
         )
 
     @database_sync_to_async
@@ -250,32 +263,40 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             CustomizationNote.objects.create(customization_id=customization_id, content=note)
 
     async def handle_customize_document(self, data):
-        doc_type = data.get('doc_type')
-        doc_url = data.get('doc_url')
-        custom_instruction = data.get('custom_instruction')
+        doc_type = data.get("doc_type")
+        doc_url = data.get("doc_url")
+        custom_instruction = data.get("custom_instruction")
 
         if not all([doc_type, doc_url, custom_instruction]):
             await self.send_error("Missing required fields for document customization")
             return
 
-        if await self.increment_usage('customization'):
+        if await self.increment_usage("customization"):
             await self.customize_document(doc_type, doc_url, custom_instruction)
 
-    async def customize_document(self, doc_type: str, doc_url: str, custom_instruction: str) -> None:
+    async def customize_document(
+        self, doc_type: str, doc_url: str, custom_instruction: str
+    ) -> None:
         try:
             doc_content = await load_document(doc_url=doc_url)
-            customized_content = await anth_customize_document(doc_type, doc_content, custom_instruction)
+            customized_content = await anth_customize_document(
+                doc_type, doc_content, custom_instruction
+            )
 
             if customized_content is None:
                 await self.send_error("Failed to customize document")
                 return
 
             is_optimized = True
-            pdf, docx = await generate_documents(doc_type, customized_content["customized_document"], is_optimized)
+            pdf, docx = await generate_documents(
+                doc_type, customized_content["customized_document"], is_optimized
+            )
             pdf_url, docx_url = await upload_documents_to_s3(pdf, docx, doc_type, is_optimized)
 
             # Retrieve the OptimizedDocument instance
-            optimized_doc = await self.get_optimized_document(self.session_data['original_doc_id'], doc_type)
+            optimized_doc = await self.get_optimized_document(
+                self.session_data["original_doc_id"], doc_type
+            )
 
             if optimized_doc is None:
                 await self.send_error("No optimized document found for customization")
@@ -287,31 +308,26 @@ class ResumeConsumer(AsyncWebsocketConsumer):
                 custom_instruction,
                 pdf_url,
                 docx_url,
-                json.dumps(customized_content["customized_document"])
+                json.dumps(customized_content["customized_document"]),
             )
 
             # Save customization analytics
             await self.save_customization_analytics(
-                customization.id,
-                customized_content["effectiveness_impact"]
+                customization.id, customized_content["effectiveness_impact"]
             )
 
             # Save customization notes
             await self.save_customization_notes(
-                customization.id,
-                customized_content["customization_notes"]
+                customization.id, customized_content["customization_notes"]
             )
 
             result = {
-                "documents": {
-                    f"{doc_type}_pdf_url": pdf_url,
-                    f"{doc_type}_docx_url": docx_url
-                },
+                "documents": {f"{doc_type}_pdf_url": pdf_url, f"{doc_type}_docx_url": docx_url},
                 "customization_info": {
                     "notes": customized_content["customization_notes"],
-                    "effectiveness_impact": customized_content["effectiveness_impact"]
+                    "effectiveness_impact": customized_content["effectiveness_impact"],
                 },
-                "metadata": customized_content["metadata"]
+                "metadata": customized_content["metadata"],
             }
 
             await self.send_message(result)
@@ -320,7 +336,7 @@ class ResumeConsumer(AsyncWebsocketConsumer):
             await self.send_error(f"Error customizing document: {str(e)}")
 
     async def handle_download_document(self, data):
-        if await self.increment_usage('download'):
+        if await self.increment_usage("download"):
             # Implement download logic here
             pass
 
@@ -329,11 +345,11 @@ class ResumeConsumer(AsyncWebsocketConsumer):
         if self.user.tier is None:
             return False, "No active subscription"
 
-        if action_type == 'creation':
+        if action_type == "creation":
             self.user.creation_count += 1
-        elif action_type == 'customization':
+        elif action_type == "customization":
             self.user.customization_count += 1
-        elif action_type == 'download':
+        elif action_type == "download":
             self.user.download_count += 1
 
         self.user.save()

@@ -19,14 +19,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.User
-        fields = ['email', 'password', 'country', 'first_name', 'last_name']
+        fields = ["email", "password", "country", "first_name", "last_name"]
         extra_kwargs = {
-            'first_name': {'required': False},
-            'last_name': {'required': False},
+            "first_name": {"required": False},
+            "last_name": {"required": False},
         }
 
     def create(self, validated_data):
-        country = validated_data.pop('country', None)
+        country = validated_data.pop("country", None)
         user = models.User.objects.create_user(**validated_data)
         if country:
             models.OrganizationProfile.objects.create(user=user, country=country)
@@ -39,13 +39,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Update last_login time
         self.user.last_login = timezone.now()
-        self.user.save(update_fields=['last_login'])
+        self.user.save(update_fields=["last_login"])
 
         # Record login history
         models.LoginHistory.objects.create(
             user=self.user,
-            ip_address=self.context['request'].META.get('REMOTE_ADDR'),
-            user_agent=self.context['request'].META.get('HTTP_USER_AGENT')
+            ip_address=self.context["request"].META.get("REMOTE_ADDR"),
+            user_agent=self.context["request"].META.get("HTTP_USER_AGENT"),
         )
 
         return data
@@ -56,7 +56,7 @@ class LoginHistorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.LoginHistory
-        fields = ['login_time', 'logout_time', 'ip_address', 'user_agent', 'session_duration']
+        fields = ["login_time", "logout_time", "ip_address", "user_agent", "session_duration"]
 
     def get_session_duration(self, obj):
         if obj.session_duration:
@@ -67,18 +67,20 @@ class LoginHistorySerializer(serializers.ModelSerializer):
 class UserTierSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.UserTier
-        fields = '__all__'
+        fields = "__all__"
 
 
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="get_full_name", read_only=True)
     user_role = serializers.CharField(source="get_user_role", read_only=True)
-    country = serializers.CharField(source='organization_profile.country', read_only=True)
-    region = serializers.CharField(source='organization_profile.city', read_only=True)  # Using city as region
+    country = serializers.CharField(source="organization_profile.country", read_only=True)
+    region = serializers.CharField(
+        source="organization_profile.city", read_only=True
+    )  # Using city as region
 
     class Meta:
         model = models.User
-        fields = ['email', 'full_name', 'user_role', 'country', 'region']
+        fields = ["email", "full_name", "user_role", "country", "region", "auth_provider"]
 
 
 class ChangePasswordSerializer(serializers.Serializer):

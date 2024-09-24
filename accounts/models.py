@@ -41,20 +41,17 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractUser, TrackingModel):
-    email = models.EmailField(
-        _("email address"), db_index=True, unique=True, blank=True, null=True
+    AUTH_PROVIDERS = (
+        ("email", "Email"),
+        ("google", "Google"),
     )
-    username = models.CharField(
-        _("username"), max_length=30, blank=True, null=True, unique=False
-    )
+
+    email = models.EmailField(_("email address"), db_index=True, unique=True, blank=True, null=True)
+    username = models.CharField(_("username"), max_length=30, blank=True, null=True, unique=False)
     phone = models.CharField(max_length=60, blank=True, null=True)
-    gender = models.CharField(
-        max_length=1, choices=GENDER_CHOICES, blank=True, null=True
-    )
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, blank=True, null=True)
     date_of_birth = models.DateField(null=True, blank=True)
-    profile_picture = models.ImageField(
-        upload_to="profile_pics/", null=True, blank=True
-    )
+    profile_picture = models.ImageField(upload_to="profile_pics/", null=True, blank=True)
 
     email_verification_token = models.CharField(max_length=128, null=True, blank=True)
     email_verified = models.BooleanField(
@@ -65,10 +62,15 @@ class User(AbstractUser, TrackingModel):
 
     # payment
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
-    tier = models.ForeignKey("UserTier", on_delete=models.SET_NULL, null=True, related_name='users')
+    tier = models.ForeignKey("UserTier", on_delete=models.SET_NULL, null=True, related_name="users")
     download_count = models.IntegerField(default=0)
     creation_count = models.IntegerField(default=0)
     customization_count = models.IntegerField(default=0)
+    auth_provider = models.CharField(
+        max_length=20,
+        choices=AUTH_PROVIDERS,
+        default="email",
+    )
 
     @property
     def total_usage_count(self):
@@ -77,29 +79,31 @@ class User(AbstractUser, TrackingModel):
     def has_reached_limit(self, action_type):
         if self.tier is None:
             return True
-        if action_type == 'download':
+        if action_type == "download":
             return self.download_count >= self.tier.download_limit
-        elif action_type == 'creation':
+        elif action_type == "creation":
             return self.creation_count >= self.tier.creation_limit
-        elif action_type == 'customization':
+        elif action_type == "customization":
             return self.customization_count >= self.tier.customization_limit
         return False
 
     def get_remaining_uses(self, action_type):
         if self.tier is None:
             return 0
-        if action_type == 'download':
+        if action_type == "download":
             return max(0, self.tier.download_limit - self.download_count)
-        elif action_type == 'creation':
+        elif action_type == "creation":
             return max(0, self.tier.creation_limit - self.creation_count)
-        elif action_type == 'customization':
+        elif action_type == "customization":
             return max(0, self.tier.customization_limit - self.customization_count)
         return 0
 
     def needs_payment(self):
-        return (self.has_reached_limit('download') or
-                self.has_reached_limit('creation') or
-                self.has_reached_limit('customization'))
+        return (
+            self.has_reached_limit("download")
+            or self.has_reached_limit("creation")
+            or self.has_reached_limit("customization")
+        )
 
     objects = UserManager()
 
@@ -120,16 +124,16 @@ class User(AbstractUser, TrackingModel):
 
 
 class UserTier(models.Model):
-    FREE = 'free'
-    ESSENTIAL = 'essential'
-    PROFESSIONAL = 'professional'
-    PREMIUM = 'premium'
+    FREE = "free"
+    ESSENTIAL = "essential"
+    PROFESSIONAL = "professional"
+    PREMIUM = "premium"
 
     TIER_CHOICES = [
-        (FREE, 'Free'),
-        (ESSENTIAL, 'Essential'),
-        (PROFESSIONAL, 'Professional'),
-        (PREMIUM, 'Premium'),
+        (FREE, "Free"),
+        (ESSENTIAL, "Essential"),
+        (PROFESSIONAL, "Professional"),
+        (PREMIUM, "Premium"),
     ]
 
     name = models.CharField(max_length=20, choices=TIER_CHOICES, unique=True)
@@ -143,9 +147,7 @@ class UserTier(models.Model):
 
 
 class OrganizationProfile(TrackingModel):
-    user = models.OneToOneField(
-        User, on_delete=models.CASCADE, related_name="organization_profile"
-    )
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="organization_profile")
     name = models.CharField(max_length=100, blank=True, null=True)
     bio = models.TextField(max_length=500, blank=True, null=True)
 
@@ -175,14 +177,17 @@ class GoogleToken(models.Model):
     @property
     def expired(self):
         from django.utils import timezone
+
         return self.expires_at <= timezone.now()
 
     def get_scopes(self):
-        return self.scopes.split(',')
+        return self.scopes.split(",")
 
 
 class LoginHistory(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='login_history')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="login_history"
+    )
     login_time = models.DateTimeField(default=timezone.now)
     logout_time = models.DateTimeField(null=True, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
@@ -198,5 +203,5 @@ class LoginHistory(models.Model):
         return f"{self.user.username} - {self.login_time}"
 
     class Meta:
-        ordering = ['-login_time']
+        ordering = ["-login_time"]
         verbose_name_plural = "Login Histories"
