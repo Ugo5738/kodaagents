@@ -47,6 +47,7 @@ jobs:
           # ------------------------- EMAIL -------------------------
           DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          MAILGUN_WEBHOOK_SIGNING_KEY: ${{ secrets.MAILGUN_WEBHOOK_SIGNING_KEY }}
           MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
 
           # ------------------------- PAYSTACK -------------------------
