@@ -1,18 +1,18 @@
-import re
-import json
-import time
 import asyncio
-from uuid import uuid4
+import json
 import mimetypes
+import re
+import time
+from typing import BinaryIO, Optional, Tuple
+from uuid import uuid4
 
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from django.conf import settings
+
 from koda.config.base_config import anthropic_client
 from koda.config.logging_config import configure_logger
 from resume.utils.util_funcs import generate_documents, upload_documents_to_s3
-from django.conf import settings
-from typing import Tuple, Optional
-from typing import BinaryIO, Optional
-from botocore.exceptions import BotoCoreError, ClientError
 
 logger = configure_logger(__name__)
 
@@ -106,7 +106,7 @@ cover_letter_example_structure = json.dumps(
         "name": "Full Name",
         "recipient": "Dear Hiring Manager,",
         "body": "Cover letter body text, separated into paragraphs by \\n\\n",
-        "closing": "Choose an appropriate closing based on the tone and content of the letter"
+        "closing": "Choose an appropriate closing based on the tone and content of the letter",
     }
 )
 
@@ -118,18 +118,19 @@ def extract_json(text):
     stack = []
     start = -1
     for i, char in enumerate(text):
-        if char == '{':
+        if char == "{":
             if not stack:
                 start = i
             stack.append(char)
-        elif char == '}':
-            if stack and stack[-1] == '{':
+        elif char == "}":
+            if stack and stack[-1] == "{":
                 stack.pop()
                 if not stack:
-                    return text[start:i+1]
+                    return text[start : i + 1]
             else:
                 stack.append(char)
     return None
+
 
 def repair_json(json_str):
     """
@@ -139,13 +140,14 @@ def repair_json(json_str):
     json_str = json_str.replace("'", '"')
 
     # Remove trailing commas in objects and arrays
-    json_str = re.sub(r',\s*}', '}', json_str)
-    json_str = re.sub(r',\s*\]', ']', json_str)
+    json_str = re.sub(r",\s*}", "}", json_str)
+    json_str = re.sub(r",\s*\]", "]", json_str)
 
     # Ensure property names are in double quotes
-    json_str = re.sub(r'(\w+)(?=\s*:)', r'"\1"', json_str)
+    json_str = re.sub(r"(\w+)(?=\s*:)", r'"\1"', json_str)
 
     return json_str
+
 
 def parse_json_safely(json_str):
     """
@@ -166,11 +168,13 @@ def parse_json_safely(json_str):
             # As a last resort, try ast.literal_eval
             try:
                 import ast
+
                 return ast.literal_eval(repaired_json)
             except (SyntaxError, ValueError) as e:
                 logger.error(f"All parsing attempts failed: {e}")
                 logger.error(f"Problematic JSON content: {json_str}")
                 raise ValueError("Unable to parse JSON content")
+
 
 async def get_anth_chat_response(prompt, to_json=True):
     start_time = time.time()
@@ -181,12 +185,11 @@ async def get_anth_chat_response(prompt, to_json=True):
         temperature=0.2,
         messages=[
             {"role": "user", "content": prompt},
-            {"role": "assistant", "content": "Here is the JSON requested:\n{"}
-        ]
+            {"role": "assistant", "content": "Here is the JSON requested:\n{"},
+        ],
     )
     message = response.content[0].text
-    edited_message = "{" + message[:message.rfind("}") + 1]
-    print(edited_message)
+    edited_message = "{" + message[: message.rfind("}") + 1]
 
     if to_json:
         # Extract JSON content
@@ -336,18 +339,22 @@ async def anth_customize_document(document_type, original_content, customization
         return {
             f"customized_document": customized_content,
             "customization_notes": customization_notes,
-            "effectiveness_impact": effectiveness_impact
+            "effectiveness_impact": effectiveness_impact,
         }
     except Exception as e:
         logger.error(f"Failed to customize document: {e}")
         return None
 
 
-async def get_anth_doc_urls(resume_content: Optional[str] = None, job_post_content: Optional[str] = None) -> Tuple[str, str, str, str]:
+async def get_anth_doc_urls(
+    resume_content: Optional[str] = None, job_post_content: Optional[str] = None
+) -> Tuple[str, str, str, str]:
     start_time = time.time()
 
     is_optimized = bool(job_post_content)
-    result = await analyze_and_improve_document(content=resume_content, job_description=job_post_content)
+    result = await analyze_and_improve_document(
+        content=resume_content, job_description=job_post_content
+    )
 
     resume_content = result["improved_resume_content"]
     cover_letter_content = result["cover_letter"]
@@ -357,8 +364,12 @@ async def get_anth_doc_urls(resume_content: Optional[str] = None, job_post_conte
     resume_pdf, resume_docx = await generate_documents("resume", resume_content, is_optimized)
     cl_pdf, cl_docx = await generate_documents("cover_letter", cover_letter_content, is_optimized)
 
-    resume_pdf_url, resume_docx_url = await upload_documents_to_s3(resume_pdf, resume_docx, "resume", is_optimized)
-    cl_pdf_url, cl_docx_url = await upload_documents_to_s3(cl_pdf, cl_docx, "cover_letter", is_optimized)
+    resume_pdf_url, resume_docx_url = await upload_documents_to_s3(
+        resume_pdf, resume_docx, "resume", is_optimized
+    )
+    cl_pdf_url, cl_docx_url = await upload_documents_to_s3(
+        cl_pdf, cl_docx, "cover_letter", is_optimized
+    )
 
     duration = time.time() - start_time
     logger.info(f"ENTIRE PROCESS TOOK {duration:.2f} seconds")
@@ -366,7 +377,9 @@ async def get_anth_doc_urls(resume_content: Optional[str] = None, job_post_conte
     return resume_pdf_url, resume_docx_url, cl_pdf_url, cl_docx_url
 
 
-def upload_directly_to_s3(file: BinaryIO, bucket_name: str, s3_key: str, content_type: Optional[str] = None) -> None:
+def upload_directly_to_s3(
+    file: BinaryIO, bucket_name: str, s3_key: str, content_type: Optional[str] = None
+) -> None:
     """
     Upload a file directly to S3.
 
@@ -380,7 +393,7 @@ def upload_directly_to_s3(file: BinaryIO, bucket_name: str, s3_key: str, content
         ValueError: If the file object doesn't have a 'read' method.
         boto3.exceptions.S3UploadFailedError: If the upload to S3 fails.
     """
-    if not hasattr(file, 'read'):
+    if not hasattr(file, "read"):
         raise ValueError("File object must have a read method")
 
     try:
@@ -394,10 +407,10 @@ def upload_directly_to_s3(file: BinaryIO, bucket_name: str, s3_key: str, content
         # Determine the content type if not provided
         if content_type is None:
             content_type, _ = mimetypes.guess_type(s3_key)
-            content_type = content_type or 'application/octet-stream'
+            content_type = content_type or "application/octet-stream"
 
         # Set the appropriate content disposition based on the file type
-        content_disposition = 'inline' if content_type == 'application/pdf' else 'attachment'
+        content_disposition = "inline" if content_type == "application/pdf" else "attachment"
 
         # Include ExtraArgs to set content type and content disposition
         s3.upload_fileobj(
@@ -500,129 +513,129 @@ Interested candidates should submit their resume and cover letter to hr@acmecorp
 # print(resume_pdf_url, resume_docx_url, cl_pdf_url, cl_docx_url)
 
 test_result = {
-    'analysis': {
-        'readability': 'The original resume has good content but could be improved in terms of structure and formatting for better readability.',
-        'tone': 'The tone is professional and achievement-oriented, which is appropriate for a marketing resume.',
-        'structure': 'The structure needs improvement. Sections could be better organized and formatted for easier scanning.',
-        'keywords': 'The resume includes relevant keywords for digital marketing, but could be further optimized to match the job description.'
+    "analysis": {
+        "readability": "The original resume has good content but could be improved in terms of structure and formatting for better readability.",
+        "tone": "The tone is professional and achievement-oriented, which is appropriate for a marketing resume.",
+        "structure": "The structure needs improvement. Sections could be better organized and formatted for easier scanning.",
+        "keywords": "The resume includes relevant keywords for digital marketing, but could be further optimized to match the job description.",
     },
-    'general_section_review': {
-        'Profile': 'Good overview but could be more concise and impactful.',
-        'Experience': 'Strong achievements but could benefit from better formatting and more consistent structure.',
-        'Skills': 'Comprehensive list but could be categorized for better readability.',
-        'Education': 'Adequate but could be moved to the end of the resume.',
-        'Certifications': 'Relevant but could be formatted more professionally.'
+    "general_section_review": {
+        "Profile": "Good overview but could be more concise and impactful.",
+        "Experience": "Strong achievements but could benefit from better formatting and more consistent structure.",
+        "Skills": "Comprehensive list but could be categorized for better readability.",
+        "Education": "Adequate but could be moved to the end of the resume.",
+        "Certifications": "Relevant but could be formatted more professionally.",
     },
-    'job_tailored_section_review': {
-        'Experience': 'Aligns well with the job requirements, but could highlight more specific digital marketing campaign results.',
-        'Skills': 'Matches many required skills, but could emphasize SEO/SEM and analytics more prominently.',
-        'Certifications': 'Google certifications should be highlighted as they directly relate to the job requirements.'
+    "job_tailored_section_review": {
+        "Experience": "Aligns well with the job requirements, but could highlight more specific digital marketing campaign results.",
+        "Skills": "Matches many required skills, but could emphasize SEO/SEM and analytics more prominently.",
+        "Certifications": "Google certifications should be highlighted as they directly relate to the job requirements.",
     },
-    'improved_resume_content': {
-        'contact': {
-            'name': 'Klein Udumaga',
-            'job_title': 'Digital Marketing and Growth Specialist',
-            'email': 'kleinuduh@gmail.com',
-            'linkedIn': 'https://www.linkedin.com/in/klein-udumaga-donald-2a8238ba'
+    "improved_resume_content": {
+        "contact": {
+            "name": "Klein Udumaga",
+            "job_title": "Digital Marketing and Growth Specialist",
+            "email": "kleinuduh@gmail.com",
+            "linkedIn": "https://www.linkedin.com/in/klein-udumaga-donald-2a8238ba",
         },
-        'summary': 'Results-driven Digital Marketing Specialist with a proven track record in developing and executing comprehensive marketing strategies across various industries. Expertise in growth hacking, content creation, and data-driven campaign optimization, consistently delivering significant ROI and revenue growth.',
-        'experiences': {
-            'experience_1': {
-                'company_name': 'Parmz Digital Technologies',
-                'job_role': 'Marketing Lead',
-                'start_date': 'November 2022',
-                'end_date': 'Present',
-                'job_description': [
-                    'Developed and implemented comprehensive marketing strategies, resulting in increased brand visibility and customer engagement.',
-                    'Designed innovative content across multiple social platforms, enhancing brand presence and user interaction.',
-                    'Optimized PPC advertising budgets and conducted in-depth keyword analysis, improving search visibility and ROI.',
-                    'Orchestrated multi-platform promotional campaigns, significantly boosting product awareness and sales conversions.'
-                ]
+        "summary": "Results-driven Digital Marketing Specialist with a proven track record in developing and executing comprehensive marketing strategies across various industries. Expertise in growth hacking, content creation, and data-driven campaign optimization, consistently delivering significant ROI and revenue growth.",
+        "experiences": {
+            "experience_1": {
+                "company_name": "Parmz Digital Technologies",
+                "job_role": "Marketing Lead",
+                "start_date": "November 2022",
+                "end_date": "Present",
+                "job_description": [
+                    "Developed and implemented comprehensive marketing strategies, resulting in increased brand visibility and customer engagement.",
+                    "Designed innovative content across multiple social platforms, enhancing brand presence and user interaction.",
+                    "Optimized PPC advertising budgets and conducted in-depth keyword analysis, improving search visibility and ROI.",
+                    "Orchestrated multi-platform promotional campaigns, significantly boosting product awareness and sales conversions.",
+                ],
             },
-            'experience_2': {
-                'company_name': 'WeLoveNoCode',
-                'job_role': 'Marketing Manager',
-                'start_date': 'September 2021',
-                'end_date': 'February 2022',
-                'job_description': [
-                    'Spearheaded marketing initiatives that accelerated revenue growth from $840,000 to $3M ARR in just five months, achieving 30% month-over-month expansion.',
-                    'Independently managed and optimized 5+ paid campaigns on Facebook and Instagram, resulting in a 4X Return on Ad Spend (ROAS).',
-                    'Improved Domain Rating (DR) from 16 to 29 and advanced SEO site health to 74%, achieving top 6 ranking for targeted keywords within three months.',
-                    'Collaborated on design of custom landing pages and content, leveraging automation to enhance audience engagement and conversion rates.'
-                ]
+            "experience_2": {
+                "company_name": "WeLoveNoCode",
+                "job_role": "Marketing Manager",
+                "start_date": "September 2021",
+                "end_date": "February 2022",
+                "job_description": [
+                    "Spearheaded marketing initiatives that accelerated revenue growth from $840,000 to $3M ARR in just five months, achieving 30% month-over-month expansion.",
+                    "Independently managed and optimized 5+ paid campaigns on Facebook and Instagram, resulting in a 4X Return on Ad Spend (ROAS).",
+                    "Improved Domain Rating (DR) from 16 to 29 and advanced SEO site health to 74%, achieving top 6 ranking for targeted keywords within three months.",
+                    "Collaborated on design of custom landing pages and content, leveraging automation to enhance audience engagement and conversion rates.",
+                ],
             },
-            'experience_3': {
-                'company_name': 'DelusionMFG',
-                'job_role': 'Ads Operations Manager',
-                'start_date': 'April 2021',
-                'end_date': 'September 2021',
-                'job_description': [
-                    'Boosted monthly revenue from $60,000 to over $100,000 in six months through strategic ad campaign management.',
-                    'Increased Conversion Rate from 0.53% to 1.68% through data-driven optimization techniques.',
-                    'Managed and refined 20+ paid campaigns on Facebook and Instagram, achieving a 7X Return on Ad Spend (ROAS).',
-                    'Oversaw a substantial five-figure monthly advertising budget, delivering weekly performance reports and forecasts to stakeholders.'
-                ]
-            }
+            "experience_3": {
+                "company_name": "DelusionMFG",
+                "job_role": "Ads Operations Manager",
+                "start_date": "April 2021",
+                "end_date": "September 2021",
+                "job_description": [
+                    "Boosted monthly revenue from $60,000 to over $100,000 in six months through strategic ad campaign management.",
+                    "Increased Conversion Rate from 0.53% to 1.68% through data-driven optimization techniques.",
+                    "Managed and refined 20+ paid campaigns on Facebook and Instagram, achieving a 7X Return on Ad Spend (ROAS).",
+                    "Oversaw a substantial five-figure monthly advertising budget, delivering weekly performance reports and forecasts to stakeholders.",
+                ],
+            },
         },
-        'education': [
+        "education": [
             {
-                'institution': 'YABA COLLEGE OF TECHNOLOGY',
-                'degree': 'Higher National Diploma, Metallurgical and Materials Engineering',
-                'end_date': '2018',
-                'location': 'Nigeria'
+                "institution": "YABA COLLEGE OF TECHNOLOGY",
+                "degree": "Higher National Diploma, Metallurgical and Materials Engineering",
+                "end_date": "2018",
+                "location": "Nigeria",
             }
         ],
-        'skills': [
-            'Digital Marketing Strategy',
-            'SEO/SEM Optimization',
-            'Social Media Marketing',
-            'Content Creation and Management',
-            'Data Analytics and Reporting',
-            'PPC Advertising (Facebook, Google)',
-            'Email Marketing Automation',
-            'Conversion Rate Optimization',
-            'Marketing Funnel Design',
-            'Adobe Creative Suite',
-            'HubSpot CRM',
-            'No-code Development (Bubble & Airtable)'
+        "skills": [
+            "Digital Marketing Strategy",
+            "SEO/SEM Optimization",
+            "Social Media Marketing",
+            "Content Creation and Management",
+            "Data Analytics and Reporting",
+            "PPC Advertising (Facebook, Google)",
+            "Email Marketing Automation",
+            "Conversion Rate Optimization",
+            "Marketing Funnel Design",
+            "Adobe Creative Suite",
+            "HubSpot CRM",
+            "No-code Development (Bubble & Airtable)",
         ],
-        'certifications': [
+        "certifications": [
             {
-                'title': 'Google Analytics Certification',
-                'issuing_organization': 'Google',
-                'date_obtained': '2023'
+                "title": "Google Analytics Certification",
+                "issuing_organization": "Google",
+                "date_obtained": "2023",
             },
             {
-                'title': 'Google Ads Certification',
-                'issuing_organization': 'Google',
-                'date_obtained': '2023'
+                "title": "Google Ads Certification",
+                "issuing_organization": "Google",
+                "date_obtained": "2023",
             },
             {
-                'title': 'Digital Advertising Certification',
-                'issuing_organization': 'HubSpot Academy',
-                'date_obtained': 'February 2021'
+                "title": "Digital Advertising Certification",
+                "issuing_organization": "HubSpot Academy",
+                "date_obtained": "February 2021",
             },
             {
-                'title': 'Content Marketing Certification',
-                'issuing_organization': 'HubSpot Academy',
-                'date_obtained': 'February 2021'
-            }
-        ]
-    },
-    'job_match_score': 85,
-    'cover_letter': "Dear Hiring Manager,\n\nI am writing to express my strong interest in the Digital Marketing Specialist position at Acme Corporation. With over five years of experience in digital marketing and a proven track record of driving significant revenue growth and ROI, I am confident in my ability to contribute to your team's success.\n\nIn my current role as Marketing Lead at Parmz Digital Technologies, I have developed and implemented comprehensive marketing strategies that have significantly increased brand visibility and customer engagement. My experience aligns perfectly with your need for someone who can plan and execute digital marketing campaigns across various channels.\n\nSome key achievements that demonstrate my qualifications for this role include:\n\n• Accelerating revenue growth from $840,000 to $3M ARR in just five months at WeLoveNoCode, achieving a 30% month-over-month expansion.\n• Independently managing and optimizing paid campaigns on Facebook and Instagram, resulting in a 4X Return on Ad Spend (ROAS).\n• Improving SEO performance, including boosting Domain Rating from 16 to 29 and achieving top 6 ranking for targeted keywords within three months.\n• Increasing conversion rates from 0.53% to 1.68% through data-driven optimization techniques at DelusionMFG.\n\nI am particularly drawn to Acme Corporation's innovative approach to digital marketing and your commitment to staying at the forefront of industry trends. My expertise in SEO/SEM, content creation, and data analytics, combined with my Google Analytics and Ads certifications, position me to make immediate contributions to your team's goals.\n\nI am excited about the opportunity to bring my skills and passion for digital marketing to Acme Corporation. I look forward to the possibility of discussing how my experience and abilities can benefit your team.\n\nThank you for your consideration.\n\nSincerely,\nKlein Udumaga",
-    'improvement_summary': {
-        'key_changes': [
-            'Restructured the resume for better readability and impact',
-            'Crafted a concise and powerful professional summary',
-            'Quantified achievements more consistently across experiences',
-            'Reorganized and categorized skills for better alignment with job requirements',
-            'Added relevant certifications and highlighted Google certifications'
+                "title": "Content Marketing Certification",
+                "issuing_organization": "HubSpot Academy",
+                "date_obtained": "February 2021",
+            },
         ],
-        'ats_optimization': "Incorporated key terms from the job description such as 'SEO/SEM', 'email marketing', and 'Google Analytics' to improve ATS compatibility.",
-        'tailoring_to_job': 'Emphasized experiences and skills most relevant to the Digital Marketing Specialist role, particularly highlighting campaign management, analytics, and SEO/SEM expertise.'
     },
-    'interview_potential_score': 90
+    "job_match_score": 85,
+    "cover_letter": "Dear Hiring Manager,\n\nI am writing to express my strong interest in the Digital Marketing Specialist position at Acme Corporation. With over five years of experience in digital marketing and a proven track record of driving significant revenue growth and ROI, I am confident in my ability to contribute to your team's success.\n\nIn my current role as Marketing Lead at Parmz Digital Technologies, I have developed and implemented comprehensive marketing strategies that have significantly increased brand visibility and customer engagement. My experience aligns perfectly with your need for someone who can plan and execute digital marketing campaigns across various channels.\n\nSome key achievements that demonstrate my qualifications for this role include:\n\n• Accelerating revenue growth from $840,000 to $3M ARR in just five months at WeLoveNoCode, achieving a 30% month-over-month expansion.\n• Independently managing and optimizing paid campaigns on Facebook and Instagram, resulting in a 4X Return on Ad Spend (ROAS).\n• Improving SEO performance, including boosting Domain Rating from 16 to 29 and achieving top 6 ranking for targeted keywords within three months.\n• Increasing conversion rates from 0.53% to 1.68% through data-driven optimization techniques at DelusionMFG.\n\nI am particularly drawn to Acme Corporation's innovative approach to digital marketing and your commitment to staying at the forefront of industry trends. My expertise in SEO/SEM, content creation, and data analytics, combined with my Google Analytics and Ads certifications, position me to make immediate contributions to your team's goals.\n\nI am excited about the opportunity to bring my skills and passion for digital marketing to Acme Corporation. I look forward to the possibility of discussing how my experience and abilities can benefit your team.\n\nThank you for your consideration.\n\nSincerely,\nKlein Udumaga",
+    "improvement_summary": {
+        "key_changes": [
+            "Restructured the resume for better readability and impact",
+            "Crafted a concise and powerful professional summary",
+            "Quantified achievements more consistently across experiences",
+            "Reorganized and categorized skills for better alignment with job requirements",
+            "Added relevant certifications and highlighted Google certifications",
+        ],
+        "ats_optimization": "Incorporated key terms from the job description such as 'SEO/SEM', 'email marketing', and 'Google Analytics' to improve ATS compatibility.",
+        "tailoring_to_job": "Emphasized experiences and skills most relevant to the Digital Marketing Specialist role, particularly highlighting campaign management, analytics, and SEO/SEM expertise.",
+    },
+    "interview_potential_score": 90,
 }
 
 
@@ -634,7 +647,7 @@ improved_resume_dict = {
             "email": "kleinuduh@gmail.com",
             "phone": "(555) 123-4567",
             "location": "New York, NY",
-            "linkedin": "https://www.linkedin.com/in/klein-udumaga-donald-2a8238ba"
+            "linkedin": "https://www.linkedin.com/in/klein-udumaga-donald-2a8238ba",
         },
         "summary": "Results-driven Digital Marketing Specialist with 5+ years of experience in developing and executing comprehensive marketing strategies across various industries. Proven track record of increasing revenue, optimizing campaigns, and driving engagement through innovative digital marketing techniques. Expertise in SEO/SEM, content creation, social media management, and data-driven decision making.",
         "experience": [
@@ -646,8 +659,8 @@ improved_resume_dict = {
                 "responsibilities": [
                     "Managed email marketing campaigns targeting 300,000+ users, resulting in a 20% increase in open rates and a 15% boost in click-through rates",
                     "Crafted a high-impact ransomware report recognized by CNN, elevating brand authority and generating significant industry citations",
-                    "Spearheaded PR initiatives and fostered relationships with government entities, enhancing the company's reputation in the cybersecurity sector"
-                ]
+                    "Spearheaded PR initiatives and fostered relationships with government entities, enhancing the company's reputation in the cybersecurity sector",
+                ],
             },
             {
                 "company": "WeLoveNoCode",
@@ -657,15 +670,15 @@ improved_resume_dict = {
                 "responsibilities": [
                     "Drove revenue growth from $840,000 to $3M ARR in 5 months, achieving 30% month-over-month expansion through strategic marketing initiatives",
                     "Optimized and managed 5+ paid campaigns on Facebook and Instagram, resulting in a 4X Return on Ad Spend (ROAS)",
-                    "Improved Domain Rating from 16 to 29 and advanced SEO site health to 74%, achieving top 6 ranking for targeted keywords within three months"
-                ]
-            }
+                    "Improved Domain Rating from 16 to 29 and advanced SEO site health to 74%, achieving top 6 ranking for targeted keywords within three months",
+                ],
+            },
         ],
         "education": {
             "institution": "Yaba College of Technology",
             "degree": "Higher National Diploma, Metallurgical and Materials Engineering",
             "year": "2018",
-            "location": "Yaba, Lagos"
+            "location": "Yaba, Lagos",
         },
         "skills": [
             "Digital Marketing Strategy",
@@ -677,25 +690,22 @@ improved_resume_dict = {
             "PPC Advertising",
             "Marketing Automation",
             "Adobe Creative Suite",
-            "HubSpot CRM"
+            "HubSpot CRM",
         ],
         "certifications": [
             {
                 "name": "Digital Advertising Certification - HubSpot Academy",
-                "date": "February 2021"
+                "date": "February 2021",
             },
-            {
-                "name": "Content Marketing Certification - HubSpot Academy",
-                "date": "February 2021"
-            }
-        ]
+            {"name": "Content Marketing Certification - HubSpot Academy", "date": "February 2021"},
+        ],
     },
     "customization_notes": [
         "Removed the Parmz Digital Technologies experience as requested.",
         "Maintained the chronological order of the remaining experiences.",
-        "No other changes were made to preserve the overall structure and content of the resume."
+        "No other changes were made to preserve the overall structure and content of the resume.",
     ],
-    "effectiveness_impact": -0.2
+    "effectiveness_impact": -0.2,
 }
 
 
@@ -712,9 +722,82 @@ improved_resume_dict = {
 
 doc_type = "resume"
 is_optimized = True
-customized_content = {'customized_document': {'name': 'Klein Udumaga', 'title': 'Digital Marketing Specialist', 'contact': {'email': 'kleinuduh@gmail.com', 'phone': '(555) 123-4567', 'location': 'New York, NY', 'linkedin': 'https://www.linkedin.com/in/klein-udumaga-donald-2a8238ba'}, 'summary': 'Results-driven Digital Marketing Specialist with 5+ years of experience in developing and executing comprehensive marketing strategies across various industries. Proven track record of increasing revenue, optimizing campaigns, and driving engagement through innovative digital marketing techniques. Expertise in SEO/SEM, content creation, social media management, and data-driven decision making.', 'experience': [{'company': 'Emsisoft Ltd.', 'position': 'Marketing Specialist', 'duration': 'May 2022 – October 2022', 'location': 'Remote', 'responsibilities': ['Managed email marketing campaigns for 300,000+ users, achieving a 20% increase in open rates and a 15% boost in click-through rates', 'Crafted a high-impact ransomware report recognized by CNN, generating significant industry buzz and increasing brand authority', "Spearheaded PR initiatives and fostered relationships with government entities, enhancing the company's reputation in the cybersecurity sector"]}, {'company': 'WeLoveNoCode', 'position': 'Marketing Manager', 'duration': 'September 2021 – February 2022', 'location': 'Remote', 'responsibilities': ['Drove revenue growth from $840,000 to $3M ARR in 5 months, achieving 30% month-over-month expansion through strategic marketing initiatives', 'Optimized paid campaigns on Facebook and Instagram, resulting in a 4X Return on Ad Spend (ROAS) and a 25% increase in qualified leads', 'Improved SEO performance, boosting Domain Rating from 16 to 29 and achieving top 6 ranking for targeted keywords within three months']}], 'education': {'institution': 'Yaba College of Technology', 'degree': 'Higher National Diploma, Metallurgical and Materials Engineering', 'year': '2018', 'location': 'Yaba, Nigeria'}, 'skills': ['Digital Marketing Strategy', 'SEO/SEM', 'Content Creation', 'Social Media Management', 'Email Marketing', 'Analytics & Reporting', 'PPC Advertising', 'Marketing Automation', 'Adobe Creative Suite', 'CRM Systems (HubSpot)'], 'certifications': [{'name': 'Digital Advertising Certification - HubSpot Academy', 'date': 'February 2021'}, {'name': 'Content Marketing Certification - HubSpot Academy', 'date': 'February 2021'}]}, 'customization_notes': ['Removed the experience entry for Parmz Digital Technologies as requested.', 'Maintained the chronological order of the remaining work experiences.', 'No other changes were made to preserve the overall structure and content of the resume.'], 'effectiveness_impact': -0.2, 'metadata': {'document_type': 'resume', 'customization_request': 'remove parmz digital technologies'}}
+customized_content = {
+    "customized_document": {
+        "name": "Klein Udumaga",
+        "title": "Digital Marketing Specialist",
+        "contact": {
+            "email": "kleinuduh@gmail.com",
+            "phone": "(555) 123-4567",
+            "location": "New York, NY",
+            "linkedin": "https://www.linkedin.com/in/klein-udumaga-donald-2a8238ba",
+        },
+        "summary": "Results-driven Digital Marketing Specialist with 5+ years of experience in developing and executing comprehensive marketing strategies across various industries. Proven track record of increasing revenue, optimizing campaigns, and driving engagement through innovative digital marketing techniques. Expertise in SEO/SEM, content creation, social media management, and data-driven decision making.",
+        "experience": [
+            {
+                "company": "Emsisoft Ltd.",
+                "position": "Marketing Specialist",
+                "duration": "May 2022 – October 2022",
+                "location": "Remote",
+                "responsibilities": [
+                    "Managed email marketing campaigns for 300,000+ users, achieving a 20% increase in open rates and a 15% boost in click-through rates",
+                    "Crafted a high-impact ransomware report recognized by CNN, generating significant industry buzz and increasing brand authority",
+                    "Spearheaded PR initiatives and fostered relationships with government entities, enhancing the company's reputation in the cybersecurity sector",
+                ],
+            },
+            {
+                "company": "WeLoveNoCode",
+                "position": "Marketing Manager",
+                "duration": "September 2021 – February 2022",
+                "location": "Remote",
+                "responsibilities": [
+                    "Drove revenue growth from $840,000 to $3M ARR in 5 months, achieving 30% month-over-month expansion through strategic marketing initiatives",
+                    "Optimized paid campaigns on Facebook and Instagram, resulting in a 4X Return on Ad Spend (ROAS) and a 25% increase in qualified leads",
+                    "Improved SEO performance, boosting Domain Rating from 16 to 29 and achieving top 6 ranking for targeted keywords within three months",
+                ],
+            },
+        ],
+        "education": {
+            "institution": "Yaba College of Technology",
+            "degree": "Higher National Diploma, Metallurgical and Materials Engineering",
+            "year": "2018",
+            "location": "Yaba, Nigeria",
+        },
+        "skills": [
+            "Digital Marketing Strategy",
+            "SEO/SEM",
+            "Content Creation",
+            "Social Media Management",
+            "Email Marketing",
+            "Analytics & Reporting",
+            "PPC Advertising",
+            "Marketing Automation",
+            "Adobe Creative Suite",
+            "CRM Systems (HubSpot)",
+        ],
+        "certifications": [
+            {
+                "name": "Digital Advertising Certification - HubSpot Academy",
+                "date": "February 2021",
+            },
+            {"name": "Content Marketing Certification - HubSpot Academy", "date": "February 2021"},
+        ],
+    },
+    "customization_notes": [
+        "Removed the experience entry for Parmz Digital Technologies as requested.",
+        "Maintained the chronological order of the remaining work experiences.",
+        "No other changes were made to preserve the overall structure and content of the resume.",
+    ],
+    "effectiveness_impact": -0.2,
+    "metadata": {
+        "document_type": "resume",
+        "customization_request": "remove parmz digital technologies",
+    },
+}
 print("This is the customized content: ", customized_content)
-pdf, docx = asyncio.run(generate_documents(doc_type, customized_content["customized_document"], is_optimized))
+pdf, docx = asyncio.run(
+    generate_documents(doc_type, customized_content["customized_document"], is_optimized)
+)
 pdf_url, docx_url = asyncio.run(upload_documents_to_s3(pdf, docx, doc_type, is_optimized))
 print(pdf_url, docx_url)
 # customization_result = asyncio.run(anth_customize_document(document_type, original_content, customization_request))

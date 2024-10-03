@@ -14,11 +14,11 @@ router.register(r"users", views.UserViewSet, basename="user")
 router.register(r"tiers", views.UserTierViewSet, basename="tiers")
 
 admin_urls = [
-    path('', include(router.urls)),
-    path('current-user/', views.CurrentUserDetailView.as_view(), name='current-user'),
+    path("", include(router.urls)),
+    path("current-user/", views.CurrentUserDetailView.as_view(), name="current-user"),
     path("change-password", views.ChangePasswordView.as_view(), name="change_password"),
-    path('change-password/', views.ChangePasswordView.as_view(), name='change-password'),
-    path('delete-account/', views.DeleteAccountView.as_view(), name='delete-account'),
+    path("change-password/", views.ChangePasswordView.as_view(), name="change-password"),
+    path("delete-account/", views.DeleteAccountView.as_view(), name="delete-account"),
     path(
         "password-reset/",
         include("django_rest_passwordreset.urls", namespace="password_reset"),
@@ -33,8 +33,12 @@ jwt_urls = [
 
 account_urls = [
     path("signup/", views.RegisterAPIView.as_view(), name="signup"),
-    path('verify-email/<str:token>/', views.VerifyEmailView.as_view(), name='verify_email'),
-    path('resend-verification/', views.ResendVerificationEmailView.as_view(), name='resend_verification'),
+    path("verify-email/<str:token>/", views.VerifyEmailView.as_view(), name="verify_email"),
+    path(
+        "resend-verification/",
+        views.ResendVerificationEmailView.as_view(),
+        name="resend_verification",
+    ),
     path(
         "login/",
         auth_views.LoginView.as_view(
@@ -43,12 +47,12 @@ account_urls = [
         name="login",
     ),
     # path("logout/", auth_views.LogoutView.as_view(), name="logout"),
-    path('logout/', views.LogoutView.as_view(), name='auth_logout'),
+    path("logout/", views.LogoutView.as_view(), name="auth_logout"),
 ]
 
 social_urls = [
-    path('dj-rest-auth/google/', views.GoogleLogin.as_view(), name='google_auth'),
-    path('google-auth/', views.GoogleAuthView.as_view(), name='google-auth'),
+    path("dj-rest-auth/google/", views.GoogleLogin.as_view(), name="google_auth"),
+    path("google-auth/", views.GoogleAuthView.as_view(), name="google-auth"),
 ]
 
 google_auth_urls = [
@@ -57,9 +61,9 @@ google_auth_urls = [
 ]
 
 payment_urls = [
-    path('payment-status/', views.UserPaymentStatusView.as_view(), name='user_payment_status'),
-    path('update-download/', views.UpdateDownloadView.as_view(), name='update_usage'),
-    path('reset-usage-counts/', views.ResetUsageCountsView.as_view(), name='reset_usage_counts'),
+    path("payment-status/", views.UserPaymentStatusView.as_view(), name="user_payment_status"),
+    path("update-download/", views.UpdateDownloadView.as_view(), name="update_usage"),
+    path("reset-usage-counts/", views.ResetUsageCountsView.as_view(), name="reset_usage_counts"),
 ]
 
 password_urls = [
@@ -99,7 +103,15 @@ password_urls = [
     ),
 ]
 
-urlpatterns = admin_urls + jwt_urls + account_urls + password_urls + social_urls + google_auth_urls + payment_urls
+urlpatterns = (
+    admin_urls
+    + jwt_urls
+    + account_urls
+    + password_urls
+    + social_urls
+    + google_auth_urls
+    + payment_urls
+)
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

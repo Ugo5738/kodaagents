@@ -146,6 +146,22 @@ class UserTier(models.Model):
         return self.name
 
 
+class UserNotification(models.Model):
+    NOTIFICATION_TYPES = [
+        ("nearing_limit", "Nearing Free Limit"),
+        ("inactive_paid_user", "Inactive Paid User"),
+        ("feedback_request", "Feedback Request"),
+        # Add other notification types as needed
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.notification_type} notification to {self.user.email} at {self.sent_at}"
+
+
 class OrganizationProfile(TrackingModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="organization_profile")
     name = models.CharField(max_length=100, blank=True, null=True)

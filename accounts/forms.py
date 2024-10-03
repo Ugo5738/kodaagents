@@ -145,14 +145,10 @@ class CustomPasswordResetForm(PasswordResetForm):
 
 class ChangePasswordForm(PasswordChangeForm):
     old_password = forms.CharField(
-        widget=forms.TextInput(
-            attrs={"class": "form-control mb-3", "placeholder": "Old Password"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control mb-3", "placeholder": "Old Password"}),
     )
     new_password1 = forms.CharField(
-        widget=forms.TextInput(
-            attrs={"class": "form-control mb-3", "placeholder": "New Password"}
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control mb-3", "placeholder": "New Password"}),
     )
     new_password2 = forms.CharField(
         widget=forms.TextInput(

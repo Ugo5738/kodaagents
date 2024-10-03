@@ -1238,21 +1238,7 @@ async def analyze_and_improve_document(doc_type="resume", content=None, job_desc
         api_type = ApiType.ANTHROPIC
         structure = get_structure(api_type)
         prompt = get_prompt(api_type, doc_type, structure, content, job_description)
-        print("============================")
-        print("This is the content: ", content)
-        print("============================")
-        print("============================")
-        print("============================")
-
-        print("============================")
-        print("This is the prompt: ", prompt)
-        print("============================")
-
         result = await get_anth_chat_response(prompt)
-
-        print("============================")
-        print("This is the result: ", result)
-        print("============================")
 
         experiences_list = result["improved_resume_content"]["experiences"]
         experiences_dict = {
@@ -1299,9 +1285,6 @@ async def analyze_and_improve_document(doc_type="resume", content=None, job_desc
         api_type = ApiType.OPENAI
         structure = get_structure(api_type)
         prompt = get_prompt(api_type, doc_type, structure, content, job_description)
-        print("============================")
-        print("This is the openai prompt: ", prompt)
-        print("============================")
         result = await get_openai_chat_response(prompt, content, structure)
 
         total = time.time() - start_time

@@ -36,18 +36,18 @@ THIRD_PARTY_APPS = [
     "drf_yasg",
     "drf_spectacular",
     "storages",
-    'django.contrib.sites',
+    "django.contrib.sites",
     "rest_framework",
-    'rest_framework.authtoken',
+    "rest_framework.authtoken",
     "rest_framework_simplejwt",
-    'rest_framework_simplejwt.token_blacklist',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',
+    "rest_framework_simplejwt.token_blacklist",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     # 'allauth.socialaccount.providers.facebook',
     "dj_rest_auth",
-    'dj_rest_auth.registration',
+    "dj_rest_auth.registration",
 ]
 
 LOCAL_APPS = [
@@ -55,14 +55,7 @@ LOCAL_APPS = [
     "accounts",
     # chat apps
     # "assistant",
-    # =====================
-    # AUTOGEN AGENTS
-    # "autogen",
-    # =====================
-    # OINTERPRETER AGENTS
-    # "ointerpsreter",
-    # =====================
-    # CREWAI AGENTS
+    "user_engagement",
     "resume",
     # payment apps
     "payment",
@@ -82,10 +75,10 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    'allauth.account.middleware.AccountMiddleware',
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    'accounts.middleware.PaymentMiddleware',
+    "accounts.middleware.PaymentMiddleware",
 ]
 
 ROOT_URLCONF = "koda.urls"
@@ -169,8 +162,8 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 # ==> CSRF
 CSRF_TRUSTED_ORIGINS = get_origin_list("CSRF_TRUSTED_ORIGINS")
-CSRF_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False  # False to allow JavaScript to access the cookie
 SESSION_COOKIE_HTTPONLY = True
 
@@ -182,44 +175,44 @@ SITE_ID = 1
 # ==> AUTHENTICATION
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
-    'allauth.account.auth_backends.AuthenticationBackend',
+    "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
 SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'APP': {
-            'client_id': config("GOOGLE_CLIENT_ID"),
-            'secret': config("GOOGLE_CLIENT_SECRET"),
-            'key': ''
+    "google": {
+        "APP": {
+            "client_id": config("GOOGLE_CLIENT_ID"),
+            "secret": config("GOOGLE_CLIENT_SECRET"),
+            "key": "",
         },
-        'SCOPE': [
-            'profile',
-            'email',
+        "SCOPE": [
+            "profile",
+            "email",
         ],
-        'AUTH_PARAMS': {
-            'access_type': 'online',
-        }
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
     }
 }
 
 # ==> AllAuth settings
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
-ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 
 # ==> DJ-REST-Auth settings
 REST_AUTH = {
-    'USE_JWT': True,
-    'JWT_AUTH_COOKIE': 'my-app-auth',
-    'JWT_AUTH_REFRESH_COOKIE': 'my-refresh-token',
+    "USE_JWT": True,
+    "JWT_AUTH_COOKIE": "my-app-auth",
+    "JWT_AUTH_REFRESH_COOKIE": "my-refresh-token",
 }
 
 # ==> REST FRAMEWORK
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-        'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
@@ -289,8 +282,8 @@ PINECONE_API_ENV = config("PINECONE_API_ENV")
 PINECONE_INDEX_NAME = config("PINECONE_INDEX_NAME")
 
 # ==> GOOGLE OAUTH SETTINGS
-GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = config('GOOGLE_CLIENT_SECRET')
+GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET")
 
 GOOGLE_REDIRECT_URI = config("GOOGLE_REDIRECT_URI")
 
@@ -300,5 +293,6 @@ FRONTEND_CALLBACK_URL = config("FRONTEND_CALLBACK_URL")
 
 # ==> EMAIL
 MAILGUN_API_KEY = config("MAILGUN_API_KEY")
+MAILGUN_WEBHOOK_SIGNING_KEY = config("MAILGUN_WEBHOOK_SIGNING_KEY")
 MAILGUN_DOMAIN = config("MAILGUN_DOMAIN")
 # ================================ CUSTOM VARIABLES =======================================

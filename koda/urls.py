@@ -29,12 +29,12 @@ schema_view = get_schema_view(
 
 default_urlpatterns = [
     path("admin/", admin.site.urls),
-    path('dj-rest-auth/', include('dj_rest_auth.urls')),
-    path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),
+    path("dj-rest-auth/", include("dj_rest_auth.urls")),
+    path("dj-rest-auth/registration/", include("dj_rest_auth.registration.urls")),
 ]
 
 permissions_urlpatterns = [
-    path('api/csrf-cookie/', account_views.GetCSRFToken.as_view()),
+    path("api/csrf-cookie/", account_views.GetCSRFToken.as_view()),
 ]
 
 custom_urlpatterns = [
@@ -42,7 +42,7 @@ custom_urlpatterns = [
     path("api/auth/", include("accounts.urls")),
     # path("api/agent/", include("autogen.urls")),
     path("api/resume/", include("resume.urls")),
-    # path("api/interpreter/", include("ointerpreter.urls")),
+    path("api/user-engagement/", include("user_engagement.urls")),
     path("api/payments/", include("payment.urls")),
 ]
 

@@ -55,9 +55,26 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: sh -c "until nc -z chat_app 8000; do echo waiting for web; sleep 2; done; celery -A koda worker --loglevel=info"
+    command: >
+      sh -c "until nc -z chat_app 8000; do echo waiting for web; sleep 2; done; 
+      celery -A koda worker --loglevel=info"
     volumes:
       - .:/code
     depends_on:
+      - web
       - redis
     container_name: chat_app_celery
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "until nc -z chat_app 8000; do echo waiting for web; sleep 2; done;
+             celery -A koda beat --loglevel=info"
+    volumes:
+      - .:/code
+    depends_on:
+      - web
+      - redis
+    container_name: chat_app_celery_beat
