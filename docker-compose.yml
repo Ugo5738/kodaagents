@@ -6,10 +6,10 @@ services:
     command: sh -c "python manage.py makemigrations && python manage.py migrate && daphne koda.asgi:application -b 0.0.0.0 -p 8000"
     volumes:
       - .:/code
-    ports:
-      - '8000:8000'
-    # expose:
-    #   - "8000"
+    # ports:
+    #   - '8000:8000'
+    expose:
+      - "8000"
     depends_on:
       - redis
     container_name: chat_app

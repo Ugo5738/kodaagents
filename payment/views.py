@@ -35,9 +35,9 @@ logger = configure_logger(__name__)
 def get_tier_from_stripe_price(price_id):
     # Map Stripe price IDs to UserTier instances
     price_to_tier = {
-        settings.STRIPE_PRICE_IDS['Essential']: UserTier.ESSENTIAL,
-        settings.STRIPE_PRICE_IDS['Professional']: UserTier.PROFESSIONAL,
-        settings.STRIPE_PRICE_IDS['Premium']: UserTier.PREMIUM,
+        settings.STRIPE_PRICE_IDS["Essential"]: UserTier.ESSENTIAL,
+        settings.STRIPE_PRICE_IDS["Professional"]: UserTier.PROFESSIONAL,
+        settings.STRIPE_PRICE_IDS["Premium"]: UserTier.PREMIUM,
     }
     tier_name = price_to_tier.get(price_id, UserTier.FREE)
     tier = UserTier.objects.get(name=tier_name)
@@ -50,31 +50,40 @@ class InitiatePaymentView(APIView):
 
     def post(self, request):
         data = request.data
-        tier_name = data.get('tier')
-        currency = data.get('currency', 'usd')
-        provider = data.get('provider', 'stripe')
-        payment_type = data.get('payment_type', 'subscription')  # 'one_time' or 'subscription'
+        tier_name = data.get("tier")
+        currency = data.get("currency", "usd")
+        provider = data.get("provider", "stripe")
+        payment_type = data.get("payment_type", "subscription")  # 'one_time' or 'subscription'
 
         tier = get_object_or_404(UserTier, name=tier_name)
         amount = float(tier.price)
 
-        if payment_type not in ['one_time', 'subscription']:
-            return JsonResponse({'error': 'Invalid payment type'}, status=status.HTTP_400_BAD_REQUEST)
+        if payment_type not in ["one_time", "subscription"]:
+            return JsonResponse(
+                {"error": "Invalid payment type"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
-        if provider == 'paystack':
+        if provider == "paystack":
             return self.initiate_paystack_payment(request, amount, currency, payment_type, tier)
-        elif provider == 'stripe':
+        elif provider == "stripe":
             return self.initiate_stripe_payment(request, amount, currency, payment_type, tier)
         else:
-            return JsonResponse({'error': 'Invalid payment provider'}, status=400)
+            return JsonResponse({"error": "Invalid payment provider"}, status=400)
 
     def initiate_stripe_payment(self, request, amount, currency, payment_type, tier):
         stripe_api = StripeAPI()
+        customer = self.get_or_create_stripe_customer(request.user)
 
-        if payment_type == 'subscription':
-            return self.initiate_stripe_subscription(request, tier)
+        if payment_type == "subscription":
+            return self.initiate_stripe_subscription(request, tier, customer)
         else:
-            intent = stripe_api.create_payment_intent(amount, request.user.email, currency)
+            # Create a Payment Intent for one-time payment
+            intent = stripe_api.create_payment_intent(
+                amount=amount,
+                customer_id=customer.id,
+                currency=currency,
+                customer_email=request.user.email,
+            )
 
             if intent:
                 Payment.objects.create(
@@ -83,15 +92,18 @@ class InitiatePaymentView(APIView):
                     currency=currency,
                     reference=intent.id,
                     stripe_payment_intent_id=intent.id,
-                    provider='stripe',
-                    tier=tier
+                    provider="stripe",
+                    tier=tier,
+                    status="pending",
                 )
-                return JsonResponse({
-                    'client_secret': intent.client_secret,
-                    'publishable_key': settings.STRIPE_PUBLISHABLE_KEY,
-                })
+                return JsonResponse(
+                    {
+                        "client_secret": intent.client_secret,
+                        "publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+                    }
+                )
             else:
-                return JsonResponse({'error': 'Failed to create payment intent'}, status=500)
+                return JsonResponse({"error": "Failed to create payment intent"}, status=500)
 
     def initiate_stripe_subscription(self, request, tier):
         try:
@@ -101,9 +113,9 @@ class InitiatePaymentView(APIView):
             # Create a Stripe Subscription
             subscription = stripe.Subscription.create(
                 customer=customer.id,
-                items=[{'price': self.get_stripe_price_id(tier)}],
-                payment_behavior='default_incomplete',
-                expand=['latest_invoice.payment_intent'],
+                items=[{"price": self.get_stripe_price_id(tier)}],
+                payment_behavior="default_incomplete",
+                expand=["latest_invoice.payment_intent"],
             )
 
             intent = subscription.latest_invoice.payment_intent
@@ -115,8 +127,8 @@ class InitiatePaymentView(APIView):
                     reference=intent.id,
                     stripe_payment_intent_id=intent.id,
                     status="pending",
-                    provider='stripe',
-                    tier=tier
+                    provider="stripe",
+                    tier=tier,
                 )
 
                 # Create a Subscription object
@@ -126,27 +138,31 @@ class InitiatePaymentView(APIView):
                     status=subscription.status,
                     current_period_start=datetime.fromtimestamp(subscription.current_period_start),
                     current_period_end=datetime.fromtimestamp(subscription.current_period_end),
-                    provider='stripe',
-                    tier=tier
+                    provider="stripe",
+                    tier=tier,
                 )
 
-                logger.info(f"Subscription initiated for user {request.user.email}, tier: {tier.name}, subscription ID: {subscription.id}")
-                return Response({
-                    'client_secret': intent.client_secret,
-                    'subscription_id': subscription.id,
-                })
+                logger.info(
+                    f"Subscription initiated for user {request.user.email}, tier: {tier.name}, subscription ID: {subscription.id}"
+                )
+                return Response(
+                    {
+                        "client_secret": intent.client_secret,
+                        "subscription_id": subscription.id,
+                    }
+                )
             else:
                 logger.error(f"Failed to create subscription for user {request.user.email}")
-                return Response({'error': 'Failed to create subscription'}, status=400)
+                return Response({"error": "Failed to create subscription"}, status=400)
         except stripe.error.StripeError as e:
             logger.error(f"Stripe API error: {str(e)}")
-            return Response({'error': str(e)}, status=400)
+            return Response({"error": str(e)}, status=400)
 
     def get_stripe_price_id(self, tier):
         price_ids = {
-            UserTier.ESSENTIAL: settings.STRIPE_PRICE_IDS['Essential'],
-            UserTier.PROFESSIONAL: settings.STRIPE_PRICE_IDS['Professional'],
-            UserTier.PREMIUM: settings.STRIPE_PRICE_IDS['Premium'],
+            UserTier.ESSENTIAL: settings.STRIPE_PRICE_IDS["Essential"],
+            UserTier.PROFESSIONAL: settings.STRIPE_PRICE_IDS["Professional"],
+            UserTier.PREMIUM: settings.STRIPE_PRICE_IDS["Premium"],
         }
         return price_ids.get(tier.name)
 
@@ -163,7 +179,9 @@ class InitiatePaymentView(APIView):
         else:
             try:
                 customer = stripe.Customer.retrieve(user.stripe_customer_id)
-                logger.info(f"Retrieved existing Stripe customer for user {user.email}: {customer.id}")
+                logger.info(
+                    f"Retrieved existing Stripe customer for user {user.email}: {customer.id}"
+                )
             except stripe.error.StripeError as e:
                 logger.error(f"Failed to retrieve Stripe customer for user {user.email}: {str(e)}")
                 raise
@@ -172,108 +190,125 @@ class InitiatePaymentView(APIView):
 
     def initiate_paystack_payment(self, request, amount, currency, payment_type, tier):
         paystack = PaystackAPI()
-        if payment_type == 'subscription':
+        if payment_type == "subscription":
             response = paystack.initialize_subscription(
                 email=request.user.email,
                 plan=settings.PAYSTACK_PLAN_CODE,
-                callback_url=f"{settings.FRONTEND_BASE_URL}/subscription/verify/"
+                callback_url=f"{settings.FRONTEND_BASE_URL}/subscription/verify/",
             )
 
-            if response and 'data' in response:
+            if response and "data" in response:
                 Subscription.objects.create(
                     user=request.user,
-                    paystack_subscription_code=response['data']['subscription_code'],
-                    provider='paystack',
-                    tier=tier
+                    paystack_subscription_code=response["data"]["subscription_code"],
+                    provider="paystack",
+                    tier=tier,
                 )
-                return JsonResponse({'authorization_url': response['data']['authorization_url']})
+                return JsonResponse({"authorization_url": response["data"]["authorization_url"]})
             else:
-                return JsonResponse({'error': 'Failed to initialize subscription'}, status=500)
+                return JsonResponse({"error": "Failed to initialize subscription"}, status=500)
         else:
             response = paystack.initialize_transaction(
                 email=request.user.email,
                 amount=amount,
                 currency=currency,
-                callback_url=f"{settings.FRONTEND_BASE_URL}/payment/verify/"
+                callback_url=f"{settings.FRONTEND_BASE_URL}/payment/verify/",
             )
 
-            if response and 'data' in response:
+            if response and "data" in response:
                 Payment.objects.create(
                     user=request.user,
                     amount=amount,
                     currency=currency,
-                    reference=response['data']['reference'],
-                    provider='paystack',
-                    tier=tier
+                    reference=response["data"]["reference"],
+                    provider="paystack",
+                    tier=tier,
                 )
-                return JsonResponse({'authorization_url': response['data']['authorization_url']})
+                return JsonResponse({"authorization_url": response["data"]["authorization_url"]})
             else:
-                return JsonResponse({'error': 'Failed to initialize transaction'}, status=500)
+                return JsonResponse({"error": "Failed to initialize transaction"}, status=500)
 
 
 class SubscriptionDetailsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        tiers = UserTier.objects.all().order_by('price')
+        tiers = UserTier.objects.all().order_by("price")
         tier_data = []
         for tier in tiers:
-            tier_data.append({
-                'name': tier.name,
-                'price': float(tier.price),
-                'interval': self.get_interval(tier.name),
-            })
+            tier_data.append(
+                {
+                    "name": tier.name,
+                    "price": float(tier.price),
+                    "interval": self.get_interval(tier.name),
+                }
+            )
 
         return Response(tier_data)
 
     def get_interval(self, tier_name):
         intervals = {
-            UserTier.ESSENTIAL: 'monthly',
-            UserTier.PROFESSIONAL: 'quarterly',
-            UserTier.PREMIUM: 'lifetime',
+            UserTier.ESSENTIAL: "monthly",
+            UserTier.PROFESSIONAL: "quarterly",
+            UserTier.PREMIUM: "lifetime",
         }
-        return intervals.get(tier_name, 'monthly')
+        return intervals.get(tier_name, "monthly")
 
 
 class VerifyPaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        reference = request.GET.get('reference')
-        subscription_id = request.GET.get('subscription_id')
-        provider = request.GET.get('provider', 'stripe')
+        reference = request.GET.get("reference")
+        subscription_id = request.GET.get("subscription_id")
+        provider = request.GET.get("provider", "stripe")
+
+        # Convert 'null' or empty string to None
+        if subscription_id == "null" or not subscription_id:
+            subscription_id = None
+        if reference == "null" or not reference:
+            reference = None
 
         if not reference and not subscription_id:
-            return JsonResponse({"status": "failed", "message": "No reference or subscription ID provided"}, status=400)
+            return JsonResponse(
+                {"status": "failed", "message": "No reference or subscription ID provided"},
+                status=400,
+            )
 
-        if provider == 'paystack':
+        if provider == "paystack":
             return self.verify_paystack_payment(reference)
-        elif provider == 'stripe':
+        elif provider == "stripe":
             return self.verify_stripe_payment(reference, subscription_id)
         else:
-            return JsonResponse({"status": "failed", "message": "Invalid payment provider"}, status=400)
+            return JsonResponse(
+                {"status": "failed", "message": "Invalid payment provider"}, status=400
+            )
 
     def verify_paystack_payment(self, reference):
         paystack = PaystackAPI()
         verify_response = paystack.verify_transaction(reference)
 
-        if verify_response and verify_response['data']['status'] == 'success':
+        if verify_response and verify_response["data"]["status"] == "success":
             payment = Payment.objects.get(reference=reference)
-            payment.status = 'success'
+            payment.status = "success"
             payment.save()
             payment.user.is_paid = True
             payment.user.save()
-            return JsonResponse({
-                "status": "success",
-                "message": "Payment verified successfully",
-                "details": {
-                    "amount": str(payment.amount),
-                    "currency": payment.currency,
-                    "reference": payment.reference,
+            return JsonResponse(
+                {
+                    "status": "success",
+                    "message": "Payment verified successfully",
+                    "details": {
+                        "amount": str(payment.amount),
+                        "currency": payment.currency,
+                        "reference": payment.reference,
+                    },
                 }
-            })
+            )
         else:
-            return JsonResponse({"status": "failed", "message": "Failed to verify payment"}, status=400)
+            return JsonResponse(
+                {"status": "failed", "message": "Failed to verify payment"}, status=400
+            )
 
     def verify_stripe_payment(self, reference, subscription_id):
         stripe_api = StripeAPI()
@@ -281,45 +316,85 @@ class VerifyPaymentView(APIView):
         if subscription_id:
             try:
                 subscription = stripe_api.retrieve_subscription(subscription_id)
-                if subscription and subscription.status in ['active', 'trialing']:
+                if subscription and subscription.status in ["active", "trialing"]:
                     return self._handle_successful_subscription(subscription)
                 else:
-                    return JsonResponse({"status": "failed", "message": "Subscription is not active"}, status=400)
+                    return JsonResponse(
+                        {"status": "failed", "message": "Subscription is not active"}, status=400
+                    )
             except stripe.error.InvalidRequestError:
-                return JsonResponse({"status": "failed", "message": "Invalid subscription ID"}, status=400)
+                return JsonResponse(
+                    {"status": "failed", "message": "Invalid subscription ID"}, status=400
+                )
         elif reference:
             intent = stripe_api.verify_payment_intent(reference)
-            if intent and intent.status == 'succeeded':
+            if intent and intent.status == "succeeded":
                 return self._handle_successful_payment(intent)
+            else:
+                return JsonResponse(
+                    {"status": "failed", "message": "Payment not successful"}, status=400
+                )
+        else:
+            return JsonResponse(
+                {"status": "failed", "message": "No reference or subscription ID provided"},
+                status=400,
+            )
 
     def _handle_successful_payment(self, intent):
-        with transaction.atomic():
-            payment = Payment.objects.get(stripe_payment_intent_id=intent.id)
-            payment.status = 'success'
-            payment.save()
+        try:
+            with transaction.atomic():
+                payment = Payment.objects.select_for_update().get(
+                    stripe_payment_intent_id=intent.id
+                )
 
-            user = payment.user
-            user.is_paid = True
-            user.tier = payment.tier
-            user.save()
+                if payment.status == "success":
+                    logger.info(f"Payment {intent.id} already processed")
+                    return JsonResponse(
+                        {
+                            "status": "success",
+                            "message": "Payment already processed",
+                            "details": {
+                                "amount": str(payment.amount),
+                                "currency": payment.currency,
+                                "reference": payment.stripe_payment_intent_id,
+                                "type": "one_time",
+                            },
+                        }
+                    )
 
-            # Clear cache
-            cache.delete(f'user_{user.id}_tier')
+                payment.status = "success"
+                payment.save()
 
-            # Double-check the update
-            user.refresh_from_db()
-            logger.info(f"User {user.email} tier after payment: {user.tier}")
+                user = payment.user
+                user.is_paid = True
+                user.tier = payment.tier
+                user.save()
 
-        return JsonResponse({
-            "status": "success",
-            "message": "Payment verified successfully",
-            "details": {
-                "amount": str(payment.amount),
-                "currency": payment.currency,
-                "reference": payment.stripe_payment_intent_id,
-                "type": "one_time"
-            }
-        })
+                # Clear cache
+                cache.delete(f"user_{user.id}_tier")
+
+                # Double-check the update
+                user.refresh_from_db()
+                logger.info(f"User {user.email} tier after payment: {user.tier}")
+
+            return JsonResponse(
+                {
+                    "status": "success",
+                    "message": "Payment verified successfully",
+                    "details": {
+                        "amount": str(payment.amount),
+                        "currency": payment.currency,
+                        "reference": payment.stripe_payment_intent_id,
+                        "type": "one_time",
+                    },
+                }
+            )
+        except Payment.DoesNotExist:
+            logger.error(f"Payment with Stripe PaymentIntent ID {intent.id} not found")
+            return JsonResponse({"status": "failed", "message": "Payment not found"}, status=404)
+        except Exception as e:
+            logger.error(f"Error processing successful payment: {str(e)}")
+            return JsonResponse({"status": "failed", "message": "An error occurred"}, status=500)
 
     def _handle_successful_subscription(self, subscription):
         with transaction.atomic():
@@ -327,40 +402,44 @@ class VerifyPaymentView(APIView):
             user.is_paid = True
 
             # Update user's tier based on the subscription
-            price_id = subscription.get('items', {}).get('data', [{}])[0].get('price', {}).get('id')
+            price_id = subscription.get("items", {}).get("data", [{}])[0].get("price", {}).get("id")
             new_tier = get_tier_from_stripe_price(price_id)
             user.tier = new_tier
             user.save()
 
             # Clear cache
-            cache.delete(f'user_{user.id}_tier')
+            cache.delete(f"user_{user.id}_tier")
 
             # Update or create Subscription object
             Subscription.objects.update_or_create(
                 user=user,
                 stripe_subscription_id=subscription.id,
                 defaults={
-                    'status': subscription.status,
-                    'current_period_start': datetime.fromtimestamp(subscription.current_period_start),
-                    'current_period_end': datetime.fromtimestamp(subscription.current_period_end),
-                    'provider': 'stripe'
-                }
+                    "status": subscription.status,
+                    "current_period_start": datetime.fromtimestamp(
+                        subscription.current_period_start
+                    ),
+                    "current_period_end": datetime.fromtimestamp(subscription.current_period_end),
+                    "provider": "stripe",
+                },
             )
 
             # Double-check the update
             user.refresh_from_db()
             logger.info(f"User {user.email} tier after subscription: {user.tier}")
 
-        return JsonResponse({
-            "status": "success",
-            "message": "Subscription verified successfully",
-            "details": {
-                "subscription_id": subscription.id,
-                "status": subscription.status,
-                "current_period_end": subscription.current_period_end,
-                "type": "subscription"
+        return JsonResponse(
+            {
+                "status": "success",
+                "message": "Subscription verified successfully",
+                "details": {
+                    "subscription_id": subscription.id,
+                    "status": subscription.status,
+                    "current_period_end": subscription.current_period_end,
+                    "type": "subscription",
+                },
             }
-        })
+        )
 
 
 class PaymentDetailsView(APIView):
@@ -372,40 +451,38 @@ class PaymentDetailsView(APIView):
 
             # Ensure the logged-in user owns this payment
             if payment.user != request.user:
-                return Response({
-                    "status": "failed",
-                    "message": "Unauthorized access to payment details"
-                }, status=status.HTTP_403_FORBIDDEN)
+                return Response(
+                    {"status": "failed", "message": "Unauthorized access to payment details"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
             # If more details is needed from Paystack, you can fetch them here
             paystack = PaystackAPI()
             paystack_response = paystack.verify_transaction(reference)
 
-            if paystack_response and paystack_response['data']['status'] == 'success':
-                return JsonResponse({
-                    "status": "success",
-                    "amount": str(payment.amount),  # Convert to string for JSON serialization
-                    "currency": payment.currency,
-                    "reference": payment.reference,
-                    # Add any other relevant details
-                })
+            if paystack_response and paystack_response["data"]["status"] == "success":
+                return JsonResponse(
+                    {
+                        "status": "success",
+                        "amount": str(payment.amount),  # Convert to string for JSON serialization
+                        "currency": payment.currency,
+                        "reference": payment.reference,
+                        # Add any other relevant details
+                    }
+                )
             else:
-                return JsonResponse({
-                    "status": "failed",
-                    "message": "Payment verification failed"
-                }, status=400)
+                return JsonResponse(
+                    {"status": "failed", "message": "Payment verification failed"}, status=400
+                )
         except Payment.DoesNotExist:
             logger.error(f"Payment with reference {reference} not found")
-            return JsonResponse({
-                "status": "failed",
-                "message": "Payment not found"
-            }, status=404)
+            return JsonResponse({"status": "failed", "message": "Payment not found"}, status=404)
         except Exception as e:
             logger.error(f"Error fetching payment details: {str(e)}")
-            return JsonResponse({
-                "status": "failed",
-                "message": "An error occurred while fetching payment details"
-            }, status=500)
+            return JsonResponse(
+                {"status": "failed", "message": "An error occurred while fetching payment details"},
+                status=500,
+            )
 
 
 class BillingHistoryView(APIView):
@@ -425,18 +502,18 @@ class CancelSubscriptionView(APIView):
         subscription = Subscription.objects.filter(user=user).first()
 
         if not subscription:
-            return Response({'error': 'No active subscription found'}, status=400)
+            return Response({"error": "No active subscription found"}, status=400)
 
         stripe_api = StripeAPI()
         result = stripe_api.cancel_subscription(subscription.stripe_subscription_id)
 
         if result:
-            subscription.status = 'canceled'
+            subscription.status = "canceled"
             subscription.canceled_at = timezone.now()
             subscription.save()
-            return Response({'message': 'Subscription canceled successfully'})
+            return Response({"message": "Subscription canceled successfully"})
         else:
-            return Response({'error': 'Failed to cancel subscription'}, status=400)
+            return Response({"error": "Failed to cancel subscription"}, status=400)
 
 
 class StripeWebhookView(APIView):
@@ -445,7 +522,7 @@ class StripeWebhookView(APIView):
     @csrf_exempt
     def post(self, request):
         payload = request.body
-        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
 
         try:
             event = stripe.Webhook.construct_event(
@@ -458,31 +535,26 @@ class StripeWebhookView(APIView):
             logger.error(f"Invalid signature: {str(e)}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-
         # Create a WebhookLog entry
-        webhook_log = WebhookLog.objects.create(
-            payload=event,
-            verified=True,
-            provider='stripe'
-        )
+        webhook_log = WebhookLog.objects.create(payload=event, verified=True, provider="stripe")
 
         event_handlers = {
-            'customer.created': self.handle_customer_created,
-            'customer.updated': self.handle_customer_updated,
-            'customer.deleted': self.handle_customer_deleted,
-            'payment_intent.succeeded': self.handle_payment_intent_succeeded,
-            'customer.subscription.created': self.handle_subscription_created,
-            'customer.subscription.updated': self.handle_subscription_updated,
-            'customer.subscription.deleted': self.handle_subscription_deleted,
-            'invoice.paid': self.handle_invoice_paid,
-            'invoice.payment_failed': self.handle_invoice_payment_failed,
+            "customer.created": self.handle_customer_created,
+            "customer.updated": self.handle_customer_updated,
+            "customer.deleted": self.handle_customer_deleted,
+            "payment_intent.succeeded": self.handle_payment_intent_succeeded,
+            "customer.subscription.created": self.handle_subscription_created,
+            "customer.subscription.updated": self.handle_subscription_updated,
+            "customer.subscription.deleted": self.handle_subscription_deleted,
+            "invoice.paid": self.handle_invoice_paid,
+            "invoice.payment_failed": self.handle_invoice_payment_failed,
         }
 
-        handler = event_handlers.get(event['type'])
+        handler = event_handlers.get(event["type"])
         # print("This is the handler: ", handler)
         if handler:
             try:
-                response = handler(event['data']['object'], webhook_log)
+                response = handler(event["data"]["object"], webhook_log)
                 webhook_log.processed = True
                 webhook_log.save()
                 return response or Response(status=status.HTTP_200_OK)
@@ -495,20 +567,32 @@ class StripeWebhookView(APIView):
             logger.warning(f"Unhandled event type: {event['type']}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-
     def handle_payment_intent_succeeded(self, payment_intent, webhook_log):
         try:
             with transaction.atomic():
-                payment = Payment.objects.select_for_update().get(stripe_payment_intent_id=payment_intent['id'])
+                payment = Payment.objects.select_for_update().get(
+                    stripe_payment_intent_id=payment_intent["id"]
+                )
 
-                if payment.status == 'success':
+                if payment.status == "success":
                     logger.info(f"Payment {payment_intent['id']} already processed")
-                    return
+                    return JsonResponse(
+                        {
+                            "status": "success",
+                            "message": "Payment already processed",
+                            "details": {
+                                "amount": str(payment.amount),
+                                "currency": payment.currency,
+                                "reference": payment.stripe_payment_intent_id,
+                                "type": "one_time",
+                            },
+                        }
+                    )
 
-                payment.status = 'success'
+                payment.status = "success"
 
                 # Safely get the charge ID
-                latest_charge = payment_intent.get('latest_charge')
+                latest_charge = payment_intent.get("latest_charge")
                 if latest_charge:
                     payment.stripe_charge_id = latest_charge
                 else:
@@ -520,10 +604,14 @@ class StripeWebhookView(APIView):
                 user = User.objects.select_for_update().get(id=payment.user_id)
                 expected_tier = payment.tier
 
-                logger.info(f"Updating tier for user {user.email}. Current tier: {user.tier}, Expected tier: {expected_tier}")
+                logger.info(
+                    f"Updating tier for user {user.email}. Current tier: {user.tier}, Expected tier: {expected_tier}"
+                )
 
                 if expected_tier is None:
-                    logger.error(f"Expected tier is None for payment {payment.id}. Unable to update user tier.")
+                    logger.error(
+                        f"Expected tier is None for payment {payment.id}. Unable to update user tier."
+                    )
                 else:
                     user.tier = expected_tier
                     user.save()
@@ -532,11 +620,13 @@ class StripeWebhookView(APIView):
                 # Verify the tier update
                 updated_user = User.objects.get(id=user.id)
                 if updated_user.tier != expected_tier:
-                    logger.error(f"Tier update verification failed for user {user.email}. Current tier: {updated_user.tier}, Expected tier: {expected_tier}")
+                    logger.error(
+                        f"Tier update verification failed for user {user.email}. Current tier: {updated_user.tier}, Expected tier: {expected_tier}"
+                    )
                     raise ValueError("Tier update verification failed")
 
             # Clear cache after successful database update
-            cache.delete(f'user_{user.id}_tier')
+            cache.delete(f"user_{user.id}_tier")
 
             # Send payment notification email
             send_payment_confirmation_email(payment)
@@ -553,18 +643,21 @@ class StripeWebhookView(APIView):
             logger.error(f"Error processing successful payment: {str(e)}")
             raise  # Re-raise the exception to be caught by the outer try-except block
 
-
     def handle_subscription_created(self, subscription, webhook_log):
-        user = User.objects.filter(stripe_customer_id=subscription['customer']).first()
+        user = User.objects.filter(stripe_customer_id=subscription["customer"]).first()
         if not user:
             logger.error(f"User not found for customer ID: {subscription['customer']}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         # Convert Unix timestamps to datetime objects
-        current_period_start = datetime.fromtimestamp(subscription['current_period_start'], tz=datetime_timezone.utc)
-        current_period_end = datetime.fromtimestamp(subscription['current_period_end'], tz=datetime_timezone.utc)
+        current_period_start = datetime.fromtimestamp(
+            subscription["current_period_start"], tz=datetime_timezone.utc
+        )
+        current_period_end = datetime.fromtimestamp(
+            subscription["current_period_end"], tz=datetime_timezone.utc
+        )
 
-        price_id = subscription['items']['data'][0]['price']['id']
+        price_id = subscription["items"]["data"][0]["price"]["id"]
         new_tier = get_tier_from_stripe_price(price_id)
 
         logger.info(f"Before update: User {user.email} tier: {user.tier}")
@@ -574,20 +667,20 @@ class StripeWebhookView(APIView):
                 Subscription.objects.update_or_create(
                     user=user,
                     defaults={
-                        'stripe_subscription_id': subscription['id'],
-                        'status': subscription['status'],
-                        'current_period_start': current_period_start,
-                        'current_period_end': current_period_end,
-                        'provider': 'stripe',
-                        'tier': new_tier
-                    }
+                        "stripe_subscription_id": subscription["id"],
+                        "status": subscription["status"],
+                        "current_period_start": current_period_start,
+                        "current_period_end": current_period_end,
+                        "provider": "stripe",
+                        "tier": new_tier,
+                    },
                 )
 
                 user.tier = new_tier
                 user.save()
 
                 # Clear cache for this user
-                cache.delete(f'user_{user.id}_tier')
+                cache.delete(f"user_{user.id}_tier")
 
             # Refresh user from database
             user.refresh_from_db()
@@ -597,37 +690,38 @@ class StripeWebhookView(APIView):
             updated_user = User.objects.get(id=user.id)
             logger.info(f"User {updated_user.email} tier after direct query: {updated_user.tier}")
 
-            send_subscription_status_email(user.email, 'created')
+            send_subscription_status_email(user.email, "created")
             return Response(status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error creating subscription for user {user.email}: {str(e)}")
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
     def handle_subscription_updated(self, subscription, webhook_log):
-        sub = Subscription.objects.filter(stripe_subscription_id=subscription['id']).first()
+        sub = Subscription.objects.filter(stripe_subscription_id=subscription["id"]).first()
         if not sub:
             logger.error(f"Subscription not found: {subscription['id']}")
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         # Convert Unix timestamps to datetime objects
-        current_period_start = datetime.fromtimestamp(subscription['current_period_start'])
-        current_period_end = datetime.fromtimestamp(subscription['current_period_end'])
-        cancel_at_period_end = subscription.get('cancel_at_period_end', False)
+        current_period_start = datetime.fromtimestamp(subscription["current_period_start"])
+        current_period_end = datetime.fromtimestamp(subscription["current_period_end"])
+        cancel_at_period_end = subscription.get("cancel_at_period_end", False)
 
-        price_id = subscription['items']['data'][0]['price']['id']
+        price_id = subscription["items"]["data"][0]["price"]["id"]
         new_tier = get_tier_from_stripe_price(price_id)
 
         logger.info(f"Before update: User {sub.user.email} tier: {sub.user.tier}")
 
         try:
             with transaction.atomic():
-                sub.status = subscription['status']
+                sub.status = subscription["status"]
                 sub.current_period_start = current_period_start
                 sub.current_period_end = current_period_end
                 sub.cancel_at_period_end = cancel_at_period_end
-                if subscription['status'] == 'canceled' and subscription.get('canceled_at'):
-                    sub.canceled_at = datetime.fromtimestamp(subscription['canceled_at'], tz=datetime_timezone.utc)
+                if subscription["status"] == "canceled" and subscription.get("canceled_at"):
+                    sub.canceled_at = datetime.fromtimestamp(
+                        subscription["canceled_at"], tz=datetime_timezone.utc
+                    )
 
                 sub.tier = new_tier
                 sub.save()
@@ -636,7 +730,7 @@ class StripeWebhookView(APIView):
                 sub.user.save()
 
                 # Clear cache for this user
-                cache.delete(f'user_{sub.user.id}_tier')
+                cache.delete(f"user_{sub.user.id}_tier")
 
             # Refresh user from database
             sub.user.refresh_from_db()
@@ -646,76 +740,73 @@ class StripeWebhookView(APIView):
             updated_user = User.objects.get(id=sub.user.id)
             logger.info(f"User {updated_user.email} tier after direct query: {updated_user.tier}")
 
-            if subscription['status'] == 'active':
+            if subscription["status"] == "active":
                 logger.info(f"Subscription {sub.id} activated for user {sub.user.email}")
-            elif subscription['status'] == 'past_due':
-                send_subscription_status_email(sub.user.email, 'payment_failed')
-            elif subscription['status'] == 'canceled':
-                send_subscription_status_email(sub.user.email, 'cancelled')
+            elif subscription["status"] == "past_due":
+                send_subscription_status_email(sub.user.email, "payment_failed")
+            elif subscription["status"] == "canceled":
+                send_subscription_status_email(sub.user.email, "cancelled")
 
             return Response(status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error updating subscription for user {sub.user.email}: {str(e)}")
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
     def handle_subscription_deleted(self, subscription, webhook_log):
-        sub = Subscription.objects.filter(stripe_subscription_id=subscription['id']).first()
+        sub = Subscription.objects.filter(stripe_subscription_id=subscription["id"]).first()
         if not sub:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        sub.status = 'canceled'
-        sub.canceled_at = subscription['canceled_at']
+        sub.status = "canceled"
+        sub.canceled_at = subscription["canceled_at"]
         sub.save()
 
         user = sub.user
         user.tier = UserTier.objects.get(name=UserTier.FREE)
         user.save()
 
-        send_subscription_status_email(user.email, 'cancelled')
+        send_subscription_status_email(user.email, "cancelled")
         return Response(status=status.HTTP_200_OK)
 
-
     def handle_invoice_paid(self, invoice, webhook_log):
-        subscription_id = invoice['subscription']
+        subscription_id = invoice["subscription"]
         sub = Subscription.objects.filter(stripe_subscription_id=subscription_id).first()
         if not sub:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         payment, created = Payment.objects.get_or_create(
-            stripe_charge_id=invoice['charge'],
+            stripe_charge_id=invoice["charge"],
             defaults={
                 "user": sub.user,
-                "amount": invoice['amount_paid'] / 100,  # Convert cents to dollars
-                "currency": invoice['currency'].upper(),
-                "reference": invoice['id'],
-                "status": 'success',
-                "provider": 'stripe',
+                "amount": invoice["amount_paid"] / 100,  # Convert cents to dollars
+                "currency": invoice["currency"].upper(),
+                "reference": invoice["id"],
+                "status": "success",
+                "provider": "stripe",
                 "subscription": sub,
-                "tier": sub.tier
-            }
+                "tier": sub.tier,
+            },
         )
 
         # send_payment_confirmation_email(payment)
         return Response(status=status.HTTP_200_OK)
 
-
     def handle_invoice_payment_failed(self, invoice, webhook_log):
-        subscription_id = invoice['subscription']
+        subscription_id = invoice["subscription"]
         sub = Subscription.objects.filter(stripe_subscription_id=subscription_id).first()
         if not sub:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        sub.status = 'past_due'
+        sub.status = "past_due"
         sub.save()
 
-        send_subscription_status_email(sub.user.email, 'payment_failed')
+        send_subscription_status_email(sub.user.email, "payment_failed")
         return Response(status=status.HTTP_200_OK)
 
     def handle_customer_created(self, customer, webhook_log):
-        user = User.objects.filter(email=customer['email']).first()
+        user = User.objects.filter(email=customer["email"]).first()
         if user:
-            user.stripe_customer_id = customer['id']
+            user.stripe_customer_id = customer["id"]
             user.save()
             logger.info(f"Customer created and linked to user: {customer['id']}")
         else:
@@ -750,13 +841,11 @@ class StripeWebhookView(APIView):
 class PaystackWebhookView(APIView):
     def post(self, request):
         payload = request.data
-        signature = request.META.get('HTTP_X_PAYSTACK_SIGNATURE', '')
+        signature = request.META.get("HTTP_X_PAYSTACK_SIGNATURE", "")
 
         # Verify the signature
         computed_signature = hmac.new(
-            settings.PAYSTACK_SECRET_KEY.encode('utf-8'),
-            request.body,
-            digestmod=hashlib.sha512
+            settings.PAYSTACK_SECRET_KEY.encode("utf-8"), request.body, digestmod=hashlib.sha512
         ).hexdigest()
 
         if signature == computed_signature:
@@ -775,18 +864,18 @@ class PaystackWebhookView(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
     def process_webhook(self, webhook_log):
-        event = webhook_log.payload.get('event')
-        data = webhook_log.payload.get('data', {})
+        event = webhook_log.payload.get("event")
+        data = webhook_log.payload.get("data", {})
 
         if not event or not data:
             logger.error("Invalid webhook payload")
             return
 
         handler_map = {
-            'charge.success': self.handle_successful_charge,
-            'subscription.create': self.handle_subscription_created,
-            'subscription.disable': self.handle_subscription_cancelled,
-            'invoice.payment_failed': self.handle_payment_failed
+            "charge.success": self.handle_successful_charge,
+            "subscription.create": self.handle_subscription_created,
+            "subscription.disable": self.handle_subscription_cancelled,
+            "invoice.payment_failed": self.handle_payment_failed,
         }
 
         handler = handler_map.get(event)
@@ -799,7 +888,7 @@ class PaystackWebhookView(APIView):
         webhook_log.save()
 
     def handle_successful_charge(self, data):
-        reference = data.get('reference')
+        reference = data.get("reference")
 
         if not reference:
             logger.error("Reference missing in charge.success event")
@@ -808,26 +897,39 @@ class PaystackWebhookView(APIView):
         try:
             with transaction.atomic():
                 payment = Payment.objects.select_for_update().get(reference=reference)
-                if payment.status == 'success':
+                if payment.status == "success":
                     logger.info(f"Payment {reference} already processed")
-                    return
+                    return JsonResponse(
+                        {
+                            "status": "success",
+                            "message": "Payment already processed",
+                            "details": {
+                                "amount": str(payment.amount),
+                                "currency": payment.currency,
+                                "reference": payment.stripe_payment_intent_id,
+                                "type": "one_time",
+                            },
+                        }
+                    )
 
-                payment.status = 'success'
+                payment.status = "success"
                 payment.save()
 
                 user = payment.user
                 subscription, created = Subscription.objects.select_for_update().get_or_create(
                     user=user,
                     defaults={
-                        'start_date': timezone.now(),
-                        'end_date': timezone.now() + relativedelta(months=1),
-                        'is_active': True,
-                        'provider': 'paystack'
-                    }
+                        "start_date": timezone.now(),
+                        "end_date": timezone.now() + relativedelta(months=1),
+                        "is_active": True,
+                        "provider": "paystack",
+                    },
                 )
 
                 if not created:
-                    subscription.end_date = max(subscription.end_date, timezone.now()) + relativedelta(months=1)
+                    subscription.end_date = max(
+                        subscription.end_date, timezone.now()
+                    ) + relativedelta(months=1)
                     subscription.is_active = True
 
                 subscription.last_payment = payment
@@ -846,8 +948,8 @@ class PaystackWebhookView(APIView):
             logger.error(f"Error processing successful charge: {str(e)}")
 
     def handle_subscription_created(self, data):
-        customer_email = data.get('customer', {}).get('email')
-        subscription_code = data.get('subscription_code')
+        customer_email = data.get("customer", {}).get("email")
+        subscription_code = data.get("subscription_code")
 
         if not customer_email or not subscription_code:
             logger.error("Missing customer email or subscription code in subscription.create event")
@@ -859,26 +961,28 @@ class PaystackWebhookView(APIView):
                 subscription, created = Subscription.objects.select_for_update().get_or_create(
                     user=user,
                     defaults={
-                        'paystack_subscription_code': subscription_code,
-                        'start_date': timezone.now(),
-                        'end_date': timezone.now() + relativedelta(months=1),
-                        'is_active': True,
-                        'provider': 'paystack'
-                    }
+                        "paystack_subscription_code": subscription_code,
+                        "start_date": timezone.now(),
+                        "end_date": timezone.now() + relativedelta(months=1),
+                        "is_active": True,
+                        "provider": "paystack",
+                    },
                 )
 
                 if not created:
                     subscription.paystack_subscription_code = subscription_code
                     subscription.save()
 
-            send_subscription_status_email(user.email, 'created')
+            send_subscription_status_email(user.email, "created")
         except User.DoesNotExist:
             logger.error(f"User with email {customer_email} not found")
 
     def handle_subscription_cancelled(self, data):
-        customer_email = data.get('customer', {}).get('email')
+        customer_email = data.get("customer", {}).get("email")
         try:
-            subscription = Subscription.objects.get(paystack_subscription_code=data.get('subscription_code'))
+            subscription = Subscription.objects.get(
+                paystack_subscription_code=data.get("subscription_code")
+            )
             subscription.is_active = False
             subscription.end_date = timezone.now()
             subscription.save()
@@ -886,12 +990,12 @@ class PaystackWebhookView(APIView):
             subscription.user.is_paid = False
             subscription.user.save()
 
-            send_subscription_status_email(customer_email, 'cancelled')
+            send_subscription_status_email(customer_email, "cancelled")
         except Subscription.DoesNotExist:
             logger.error(f"Subscription with code {data.get('subscription_code')} not found")
 
     def handle_payment_failed(self, data):
-        customer_email = data.get('customer', {}).get('email')
+        customer_email = data.get("customer", {}).get("email")
         try:
             user = User.objects.get(email=customer_email)
             subscription = Subscription.objects.get(user=user)
@@ -901,7 +1005,7 @@ class PaystackWebhookView(APIView):
             user.is_paid = False
             user.save()
 
-            send_subscription_status_email(customer_email, 'payment_failed')
+            send_subscription_status_email(customer_email, "payment_failed")
         except User.DoesNotExist:
             logger.error(f"User with email {customer_email} not found")
         except Subscription.DoesNotExist:

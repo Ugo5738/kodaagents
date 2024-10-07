@@ -7,17 +7,22 @@ logger = configure_logger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+
 class StripeAPI:
     def __init__(self, test_mode=False):
         self.api_key = settings.STRIPE_TEST_SECRET_KEY if test_mode else settings.STRIPE_SECRET_KEY
         stripe.api_key = self.api_key
 
-    def create_payment_intent(self, amount, customer_email, currency):
+    def create_payment_intent(self, amount, customer_id, currency, customer_email):
         try:
             intent = stripe.PaymentIntent.create(
-                amount=self._convert_to_lowest_unit(amount, currency),  # Stripe expects amounts in cents
+                amount=self._convert_to_lowest_unit(
+                    amount, currency
+                ),  # Stripe expects amounts in cents
                 currency=currency,
+                customer=customer_id,
                 receipt_email=customer_email,
+                metadata={"integration_check": "accept_a_payment"},
             )
             return intent
         except stripe.error.StripeError as e:
@@ -26,9 +31,9 @@ class StripeAPI:
 
     def _convert_to_lowest_unit(self, amount, currency):
         conversion_factors = {
-            'usd': 100,  # 1 Dollar = 100 Cents
-            'eur': 100,  # 1 Euro = 100 Cents
-            'gbp': 100,  # 1 Pound = 100 Pence
+            "usd": 100,  # 1 Dollar = 100 Cents
+            "eur": 100,  # 1 Euro = 100 Cents
+            "gbp": 100,  # 1 Pound = 100 Pence
             # Add other currencies as needed
         }
         factor = conversion_factors.get(currency.lower(), 100)
@@ -55,10 +60,10 @@ class StripeAPI:
             invoices = stripe.Invoice.list(customer=customer_id, limit=10)
             return [
                 {
-                    'date': invoice.created,
-                    'amount': invoice.total / 100,  # Convert cents to dollars
-                    'status': invoice.status,
-                    'invoice_pdf': invoice.invoice_pdf,
+                    "date": invoice.created,
+                    "amount": invoice.total / 100,  # Convert cents to dollars
+                    "status": invoice.status,
+                    "invoice_pdf": invoice.invoice_pdf,
                 }
                 for invoice in invoices.data
             ]
