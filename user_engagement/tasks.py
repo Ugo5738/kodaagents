@@ -37,11 +37,10 @@ def notify_users_nearing_free_limit():
 
     users = User.objects.filter(
         tier__name="free",
-        # creation_count__gte=threshold,
+        creation_count__gte=threshold,
     )
 
     for user in users:
-        user = User.objects.get(email="contactugodaniels@gmail.com")
         # Check if a notification was sent within the interval
         recent_notification = UserNotification.objects.filter(
             user=user,
@@ -120,7 +119,6 @@ def notify_inactive_paid_users():
     )
 
     for user in users:
-        user = User.objects.get(email="contactugodaniels@gmail.com")
         # Check if a notification was sent within the interval
         recent_notification = UserNotification.objects.filter(
             user=user,
@@ -194,7 +192,6 @@ def send_satisfaction_survey():
     )
 
     for user in users:
-        user = User.objects.get(email="contactugodaniels@gmail.com")
         # Check if a notification was sent within the interval
         recent_notification = UserNotification.objects.filter(
             user=user,
