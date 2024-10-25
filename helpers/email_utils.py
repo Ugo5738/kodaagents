@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import json
 import re
 from email.mime.text import MIMEText
 from typing import Dict, List, Tuple
@@ -17,7 +18,7 @@ from googleapiclient.errors import HttpError
 
 from accounts.models import GoogleToken
 from koda.config.logging_config import configure_logger
-from resume.utils.util_funcs import get_anth_chat_response
+from resume.utils.util_funcs import EmailResponse, PersonalizedEmailResponse, get_groq_chat_response
 
 logger = configure_logger(__name__)
 
@@ -273,7 +274,7 @@ async def generate_personalized_email(conversation, user_message: str = None) ->
         user_message: Optional latest user message if not yet added to conversation.
 
     Returns:
-        A tuple containing (human_needed: bool, assistant_message: str)
+        A tuple containing (human_needed: bool, body: str)
 
     Raises:
         ValidationError: If the API response is invalid.
@@ -291,7 +292,7 @@ async def generate_personalized_email(conversation, user_message: str = None) ->
     prompt = create_prompt(chat_history, conversation.email, conversation.subject)
 
     try:
-        response = await get_anth_chat_response(prompt)
+        response = await get_groq_chat_response(prompt, response_model=PersonalizedEmailResponse)
 
         if (
             not isinstance(response, dict)
@@ -323,13 +324,15 @@ def create_prompt(chat_history: List[Dict[str, str]], user_email: str, subject: 
     
     Guidelines:
     1. Analyze the entire conversation history to understand the context and user's needs.
-    2. If you can fully address the user's query:
-       - Provide a helpful, concise response that directly addresses the latest user message while considering the full context
-       - The only services of ResumeGuru are the one mentioned above and nothing else. 
-       - Use HTML formatting for the email body
-       - Include appropriate indigo-colored buttons or links when relevant
-       - Sign off with your name, as you're part of the ResumeGuru team
-    3. If the user makes a suggestion or the query requires human assistance at any point:
+    2. If you can fully address the user's query without a ResumeGuru human support needed:
+       - Set 'human_needed' to false
+       - In the 'body', provide a helpful, concise response that directly addresses the latest user message while considering the full context
+         * You can ask more clarifying questions to get the users needs where the user query is ambigious.
+         * The only services of ResumeGuru are the one mentioned above and nothing else. 
+         * Use HTML formatting for the email body
+         * Include appropriate indigo-colored buttons or links when relevant
+         * Sign off with your name, as you're part of the ResumeGuru team
+    3. If the user makes a suggestion or the query requires that you transfer the conversation to human assistance at any point:
        - Set 'human_needed' to true
        - In the 'body', create a summary for the ResumeGuru team, including:
          * User's email and subject
@@ -394,7 +397,7 @@ def generate_user_escalation_email(conversation):
     """
 
     try:
-        response = async_to_sync(get_anth_chat_response)(prompt)
+        response = async_to_sync(get_groq_chat_response)(prompt, response_model=EmailResponse)
         return response["body"]
     except Exception as e:
         logger.error(f"Error generating user escalation email: {str(e)}")

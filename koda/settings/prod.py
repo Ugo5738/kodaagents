@@ -8,7 +8,7 @@ ALLOWED_HOSTS = ["*"]
 
 # ================================ DATABASES =======================================
 DATABASES = {"default": dj_database_url.parse(config("DATABASE_URL"))}
-# DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
+# # DATABASES["default"]["OPTIONS"] = {"sslmode": "require"}
 # ================================ DATABASES =======================================
 
 

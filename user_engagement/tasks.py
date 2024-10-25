@@ -4,6 +4,7 @@ from asgiref.sync import async_to_sync
 from celery import shared_task
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from pydantic import BaseModel
 
 from accounts.models import User, UserNotification
 from helpers.email_utils import (
@@ -14,10 +15,15 @@ from helpers.email_utils import (
     wrap_in_template,
 )
 from koda.config.logging_config import configure_logger
-from resume.utils.util_funcs import get_anth_chat_response
+from resume.utils.util_funcs import get_groq_chat_response
 from user_engagement.models import Conversation, Message
 
 logger = configure_logger(__name__)
+
+
+class EmailContent(BaseModel):
+    subject: str
+    body: str
 
 
 @shared_task
@@ -31,10 +37,11 @@ def notify_users_nearing_free_limit():
 
     users = User.objects.filter(
         tier__name="free",
-        creation_count__gte=threshold,
+        # creation_count__gte=threshold,
     )
 
     for user in users:
+        user = User.objects.get(email="contactugodaniels@gmail.com")
         # Check if a notification was sent within the interval
         recent_notification = UserNotification.objects.filter(
             user=user,
@@ -75,7 +82,7 @@ Generate only the JSON response.
 """
 
     try:
-        email_content = async_to_sync(get_anth_chat_response)(prompt)
+        email_content = async_to_sync(get_groq_chat_response)(prompt, response_model=EmailContent)
     except Exception as e:
         logger.error(f"Failed to generate email content: {e}")
         email_content = {
@@ -113,6 +120,7 @@ def notify_inactive_paid_users():
     )
 
     for user in users:
+        user = User.objects.get(email="contactugodaniels@gmail.com")
         # Check if a notification was sent within the interval
         recent_notification = UserNotification.objects.filter(
             user=user,
@@ -134,7 +142,7 @@ ResumeGuru is an AI powered platform that helps users optimize their resumes to 
 - This is the dashboard where the user can edit and create resumes and cover letter: https://resumeguru.pro/dashboard
 - This is the login url: https://resumeguru.pro/login
 - ResumeGuru's theme color is indigo, so the buttons you use should match
-- Use your name as the closing greeting because you are part of the ResumeGuru Team
+- Use your name in the closing greeting because you are part of the ResumeGuru Team
 
 Please output the email as a JSON object with the following keys:
 - "subject": The subject of the email.
@@ -152,7 +160,7 @@ Generate only the JSON response.
 """
 
     try:
-        email_content = async_to_sync(get_anth_chat_response)(prompt)
+        email_content = async_to_sync(get_groq_chat_response)(prompt, response_model=EmailContent)
     except Exception as e:
         logger.error(f"Failed to generate email content: {e}")
         email_content = {
@@ -186,6 +194,7 @@ def send_satisfaction_survey():
     )
 
     for user in users:
+        user = User.objects.get(email="contactugodaniels@gmail.com")
         # Check if a notification was sent within the interval
         recent_notification = UserNotification.objects.filter(
             user=user,
@@ -202,7 +211,7 @@ def send_satisfaction_survey():
 def send_survey_email_to_user(user):
     prompt = f"""
 You are Taylor R., an AI assistant for ResumeGuru. Generate an email requesting feedback from an active user.
-The feedback can be given by responding to the mail or by filling the form.
+Inform the user that the feedback can be given by responding to the mail or by filling the form. Ensure to include your name in the closing greetings
 
 Please output the email as a JSON object with the following keys:
 - "subject": The subject of the email.
@@ -212,7 +221,13 @@ Include personalized elements using the user's first name: {user.first_name}.
 
 Include a link to the survey for if the user chooses to fill the form instead of responding via mail: https://resumeguru.pro/feedback
 
-Example format:
+**Important Instructions:**
+- Ensure all quotation marks inside the JSON strings are escaped properly using backslashes (e.g., \\").
+- Do not include any additional fields besides "subject" and "body".
+- Generate only the JSON response without any extra text.
+
+**Example format:**
+
 {{
   "subject": "Your Subject Here",
   "body": "Your HTML body here"
@@ -222,7 +237,7 @@ Generate only the JSON response.
 """
 
     try:
-        email_content = async_to_sync(get_anth_chat_response)(prompt)
+        email_content = async_to_sync(get_groq_chat_response)(prompt, response_model=EmailContent)
     except Exception as e:
         logger.error(f"Failed to generate email content: {e}")
         # Fallback content

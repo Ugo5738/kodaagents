@@ -50,7 +50,7 @@ services:
     environment:
       - NGINX_PROXY_CONTAINER=nginx_reverse_proxy
       - DEFAULT_EMAIL=resumegurupro@gmail.com
-
+ 
   celery:
     build:
       context: .
@@ -78,3 +78,4 @@ services:
       - web
       - redis
     container_name: chat_app_celery_beat
+ 

@@ -33,6 +33,7 @@ google-auth-oauthlib
 google-auth-httplib2
 # google-cloud-pubsub
 # google-cloud-storage
+groq
 # gunicorn
 langchain
 langchain-community
@@ -49,6 +50,7 @@ Pillow
 # playwright
 # pyautogen
 # pymongo
+pydantic
 pyspellchecker
 python-decouple
 python-docx

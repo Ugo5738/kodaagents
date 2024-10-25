@@ -24,11 +24,12 @@ from langchain_community.document_loaders import (
     UnstructuredFileLoader,
 )
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, ValidationError
 from sklearn.feature_extraction.text import CountVectorizer
 from spellchecker import SpellChecker
 from textblob import TextBlob
 
-from koda.config.base_config import anthropic_client, openai_client
+from koda.config.base_config import anthropic_client, groq_client, openai_client
 from koda.config.logging_config import configure_logger
 from resume.document import generate_cover_letter_docx, generate_resume_docx
 from resume.pdf_gen import generate_cv_pdf, generate_resume_pdf
@@ -41,6 +42,15 @@ from resume.samples import (
 )
 
 logger = configure_logger(__name__)
+
+
+class EmailResponse(BaseModel):
+    body: str
+
+
+class PersonalizedEmailResponse(BaseModel):
+    human_needed: bool
+    body: str
 
 
 cover_letter_example_structure = json.dumps(
@@ -1058,6 +1068,43 @@ async def get_anth_chat_response(prompt, to_json=True):
     logger.info(f"Chat Response Time: {total}")
 
     return edited_message
+
+
+async def get_groq_chat_response(prompt, response_model=EmailResponse):
+    start_time = time.time()
+
+    schema_json = json.dumps(response_model.model_json_schema(), indent=2)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Ensure that your responses are valid JSON.\n"
+                "The JSON object must use the schema:\n"
+                f"{schema_json}\n"
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ]
+
+    structured_response = await groq_client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=messages,
+        response_format={
+            "type": "json_object",
+        },
+    )
+    response_content = structured_response.choices[0].message.content
+
+    try:
+        response_json = json.loads(response_content)
+        # Validate against the provided Pydantic model
+        response_data = response_model.model_validate(response_json)
+        total = time.time() - start_time
+        logger.info(f"Chat Response Time: {total}")
+        return response_data.model_dump()
+    except (json.JSONDecodeError, ValidationError) as e:
+        logger.error(f"Failed to parse JSON: {str(e)}")
+        raise ValueError(f"Failed to parse JSON: {str(e)}")
 
 
 class ApiType(Enum):
